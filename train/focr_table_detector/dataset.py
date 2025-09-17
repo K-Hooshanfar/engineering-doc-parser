@@ -52,7 +52,7 @@ def split_indices(
         return [], [], []
 
     cfg = cfg.normalized()
-    rng = random.Random(seed)
+    rng = random.Random(seed) # nosec B311 
     indices = list(range(n_total))
     rng.shuffle(indices)
 
