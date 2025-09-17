@@ -58,7 +58,6 @@ def split_indices(
 
     n_train = int(n_total * cfg.train)
     n_val = int(n_total * cfg.val)
-    n_test = n_total - n_train - n_val
 
     train_idx = indices[:n_train]
     val_idx = indices[n_train : n_train + n_val]
