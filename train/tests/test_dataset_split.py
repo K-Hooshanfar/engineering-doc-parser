@@ -37,14 +37,14 @@ def test_prepare_dataset_copies_files(tmp_path: Path) -> None:
         seed=42,
     )
 
-    assert n_train + n_val + n_test == 20
+    assert n_train + n_val + n_test == 20 # nosec B101
     # Check folders exist
     for split in ("train", "valid", "test"):
-        assert (dest / split / "images").exists()
-        assert (dest / split / "labels").exists()
+        assert (dest / split / "images").exists() # nosec B101
+        assert (dest / split / "labels").exists() # nosec B101
 
     # Rough distribution checks (deterministic with seed=42)
-    assert n_train >= n_val >= n_test
+    assert n_train >= n_val >= n_test # nosec B101
 
 
 @pytest.mark.parametrize("ratios", [(0.7, 0.2, 0.1), (7, 2, 1)])
@@ -59,4 +59,4 @@ def test_split_normalization(tmp_path: Path, ratios) -> None:
         cfg=SplitConfig(train=train, val=val, test=test),
         seed=0,
     )
-    assert n_train + n_val + n_test == 10
+    assert n_train + n_val + n_test == 10 # nosec B101
