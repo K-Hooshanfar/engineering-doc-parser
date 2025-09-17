@@ -1,0 +1,7 @@
+# Adjust these absolute paths for your environment if needed.
+train: /code/Datasets/foolad/table_detect_ocr/merged_dataset/dataset/train/images
+val: /code/Datasets/foolad/table_detect_ocr/merged_dataset/dataset/valid/images
+test: /code/Datasets/foolad/table_detect_ocr/merged_dataset/dataset/test/images
+
+nc: 1
+names: ['table']
