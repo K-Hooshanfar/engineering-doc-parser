@@ -30,10 +30,14 @@ def list_images(source_images: Path) -> List[Path]:
         List of image file paths.
     """
     exts = {".jpg", ".jpeg", ".png"}
-    return [p for p in source_images.iterdir() if p.suffix.lower() in exts and p.is_file()]
+    return [
+        p for p in source_images.iterdir() if p.suffix.lower() in exts and p.is_file()
+    ]
 
 
-def split_indices(n_total: int, cfg: SplitConfig, seed: int = 42) -> Tuple[List[int], List[int], List[int]]:
+def split_indices(
+    n_total: int, cfg: SplitConfig, seed: int = 42
+) -> Tuple[List[int], List[int], List[int]]:
     """Compute randomized indices for train/val/test splits.
 
     Args:
@@ -62,7 +66,9 @@ def split_indices(n_total: int, cfg: SplitConfig, seed: int = 42) -> Tuple[List[
     return train_idx, val_idx, test_idx
 
 
-def copy_pair(image: Path, src_labels: Path, dst_images: Path, dst_labels: Path) -> None:
+def copy_pair(
+    image: Path, src_labels: Path, dst_images: Path, dst_labels: Path
+) -> None:
     """Copy an image and its matching YOLO label (if present)."""
     dst_images.mkdir(parents=True, exist_ok=True)
     dst_labels.mkdir(parents=True, exist_ok=True)
