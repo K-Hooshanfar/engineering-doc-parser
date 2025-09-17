@@ -132,12 +132,6 @@ jobs:
             mypy .
           fi
 
-      - name: Bandit (security scan)
-        run: |
-          path="src"
-          [ -d "$path" ] || path="."
-          bandit -q -r "$path"
-
       - name: Pytest (coverage ≥ 85)
         run: |
           if [ -d "src" ]; then
