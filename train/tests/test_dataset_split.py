@@ -16,9 +16,13 @@ def make_dummy_yolo(tmp: Path, n: int) -> Tuple[Path, Path]:
     labels.mkdir(parents=True, exist_ok=True)
     # create n image/label pairs (some without labels)
     for i in range(n):
-        (images / f"img_{i}.jpg").write_bytes(b"fake-jpeg")  # not a real image; good enough for IO test
+        (images / f"img_{i}.jpg").write_bytes(
+            b"fake-jpeg"
+        )  # not a real image; good enough for IO test
         if i % 3 != 0:  # leave some without labels to exercise warning path
-            (labels / f"img_{i}.txt").write_text("0 0.5 0.5 0.5 0.5\n", encoding="utf-8")
+            (labels / f"img_{i}.txt").write_text(
+                "0 0.5 0.5 0.5 0.5\n", encoding="utf-8"
+            )
     return images, labels
 
 
