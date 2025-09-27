@@ -24,7 +24,7 @@ import argparse
 import logging
 import os
 import re
-from typing import Iterable, List, Optional, Tuple, Protocol, Any, cast
+from typing import Any, Iterable, List, Optional, Protocol, Tuple, cast
 
 import cv2
 import numpy as np

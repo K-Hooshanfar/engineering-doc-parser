@@ -1,21 +1,14 @@
-"""Public API for the `rotation` package.
-
-This module re-exports the core functions from `.rotation` so that
-`import rotation` exposes a flat, user-friendly API (and so tests that
-import `rotation` hit the real implementation).
-"""
-
 from .rotation import (
-    setup_logging,
+    build_parser,
     detect_east_boxes,
-    estimate_orientation,
     detect_osd_rotation,
+    estimate_orientation,
+    iter_image_files,
+    main,
+    process_one_image,
     rotate_if_needed,
     save_image,
-    build_parser,
-    iter_image_files,
-    process_one_image,
-    main,
+    setup_logging,
 )
 
 __all__ = [

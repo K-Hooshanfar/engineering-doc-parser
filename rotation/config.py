@@ -3,6 +3,8 @@
 Defines paths and constants used by the document orientation detector,
 including the default EAST text detector model path.
 """
+
+
 class Config:
     """
     Configuration settings for the document orientation detector.

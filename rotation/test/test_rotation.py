@@ -92,6 +92,7 @@ def test_estimate_orientation_counts(rotation_mod):
 
 def test_detect_osd_rotation_parsing(rotation_mod, monkeypatch):
     """Parses rotation angle from Tesseract OSD output."""
+
     # Fake OSD output
     def fake_osd(_img):
         return "Orientation in degrees: 0\nRotate: 270\nSome other lines..."
