@@ -25,7 +25,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Iterable, Iterator, List, Sequence, Tuple, Optional
+from typing import Iterable, Iterator, List, Sequence, Tuple, Optional, Protocol
 
 import cv2
 import numpy as np
@@ -63,6 +63,7 @@ def _call_process_one_image(pkg, image_path, net, **kwargs):
 
 class DnnNet(Protocol):
     """Protocol for OpenCV DNN network objects."""
+
     def setInput(self, blob: np.ndarray) -> None: ...
     def forward(self, outputNames: List[str]) -> Tuple[np.ndarray, np.ndarray]: ...
 
