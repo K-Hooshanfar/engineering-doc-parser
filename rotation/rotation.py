@@ -29,7 +29,11 @@ from typing import Iterable, List, Optional, Tuple, Protocol, Any, cast
 import cv2
 import numpy as np
 import pytesseract  # type: ignore[import-not-found,import-untyped]
-from rotation.config import Config
+
+try:
+    from .config import Config
+except Exception:
+    from rotation.config import Config
 
 
 # --------------------------- Logging helpers ---------------------------------
