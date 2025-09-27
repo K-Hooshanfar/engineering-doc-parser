@@ -24,11 +24,11 @@ import argparse
 import logging
 import os
 import re
-from typing import Iterable, List, Optional, Tuple
+from typing import Iterable, List, Optional, Tuple, Protocol, Any, cast
 
 import cv2
 import numpy as np
-import pytesseract
+import pytesseract  # type: ignore[import-not-found,import-untyped]
 from rotation.config import Config
 
 
@@ -64,9 +64,14 @@ log = logging.getLogger(__name__)
 # ----------------------------------------------------------------------------
 
 
+class DnnNet(Protocol):
+    def setInput(self, blob: Any) -> None: ...
+    def forward(self, out_names: Iterable[str]) -> Tuple[np.ndarray, np.ndarray]: ...
+
+
 def detect_east_boxes(
     image: np.ndarray,
-    net: cv2.dnn_Net,
+    net: DnnNet,
     conf_thresh: float = 0.5,
     nms_thresh: float = 0.4,
 ) -> List[Tuple[int, int, int, int]]:
@@ -247,7 +252,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the frozen EAST detector .pb model.",
     )
     p.add_argument(
-        "-o", "--result-dir", default="result", help="Directory to write outputs."
+        "-o",
+        "--result-dir",
+        default="rotation/result",
+        help="Directory to write outputs.",
     )
     p.add_argument(
         "--save-unchanged",
@@ -322,7 +330,7 @@ def iter_image_files(
 
 def process_one_image(
     image_path: str,
-    net: cv2.dnn_Net,
+    net: DnnNet,
     *,
     result_dir: str,
     conf_thresh: float,
@@ -396,7 +404,7 @@ def main() -> None:
             raise NotADirectoryError(f"--input-dir is not a directory: {input_dir}")
 
         log.info("Loading EAST model: %s", east_model_path)
-        net = cv2.dnn.readNet(east_model_path)
+        net = cast(DnnNet, cv2.dnn.readNet(east_model_path))
 
         files = list(iter_image_files(input_dir, exts, recursive))
         if not files:
@@ -429,7 +437,7 @@ def main() -> None:
 
         log.info("Loading image: %s", image_path)
         log.info("Loading EAST model: %s", east_model_path)
-        net = cv2.dnn.readNet(east_model_path)
+        net = cast(DnnNet, cv2.dnn.readNet(east_model_path))
 
         process_one_image(
             image_path,
