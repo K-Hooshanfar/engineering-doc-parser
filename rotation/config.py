@@ -5,4 +5,5 @@ class Config:
     Attributes:
         EAST_TEXT_DETECTOR (str): Filesystem path to the pretrained EAST text detection model.
     """
-    EAST_TEXT_DETECTOR: str = 'weights/frozen_east_text_detection.pb'
+
+    EAST_TEXT_DETECTOR: str = "weights/frozen_east_text_detection.pb"
