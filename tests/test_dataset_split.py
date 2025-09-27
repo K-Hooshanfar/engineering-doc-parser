@@ -8,6 +8,16 @@ import pytest
 from train.focr_table_detector.dataset import SplitConfig, prepare_dataset
 
 
+def test_config_module_import_executes_and_has_constant():
+    """Import the real rotation.config so its lines are executed for coverage."""
+    import importlib
+
+    cfg = importlib.import_module("rotation.config")
+    assert hasattr(cfg, "Config")
+    assert isinstance(cfg.Config.EAST_TEXT_DETECTOR, str)
+    assert cfg.Config.EAST_TEXT_DETECTOR.endswith(".pb")
+
+
 def make_dummy_yolo(tmp: Path, n: int) -> Tuple[Path, Path]:
     """Create a minimal YOLO-style dataset tree for tests.
 

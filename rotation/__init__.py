@@ -19,6 +19,7 @@ from .rotation import (
     save_image,
     setup_logging,
 )
+from .config import Config
 
 # 2) Re-export for tests to monkeypatch at package level
 argparse = _argparse
@@ -41,4 +42,5 @@ __all__ = [
     "os",
     "cv2",
     "pytesseract",
+    "Config",
 ]
