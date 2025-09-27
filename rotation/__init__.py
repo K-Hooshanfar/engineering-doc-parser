@@ -1,12 +1,10 @@
+# rotation/__init__.py
+
+# 1) All imports at the very top
 import argparse as _argparse
 import os as _os
 import cv2 as _cv2
 import pytesseract as _pytesseract
-
-argparse = _argparse
-os = _os
-cv2 = _cv2
-pytesseract = _pytesseract
 from .rotation import (
     build_parser,
     detect_east_boxes,
@@ -19,6 +17,12 @@ from .rotation import (
     save_image,
     setup_logging,
 )
+
+# 2) Re-export for tests to monkeypatch at package level
+argparse = _argparse
+os = _os
+cv2 = _cv2
+pytesseract = _pytesseract
 
 __all__ = [
     "setup_logging",
