@@ -1,3 +1,10 @@
+"""Tests for the `rotation` package.
+
+This suite exercises orientation estimation, OSD parsing, rotation decisions,
+directory iteration, and CLI flows. It stubs external deps (config, pytesseract)
+to keep tests hermetic.
+"""
+
 import importlib
 import sys
 import types
@@ -14,12 +21,14 @@ import pytest
 
 @pytest.fixture(scope="session")
 def project_root():
+    """Return the project root added to sys.path so `import rotation` works."""
     # Adjust if your layout changes
     return Path("/FOCR_table/rotation")
 
 
 @pytest.fixture(autouse=True, scope="session")
 def add_project_to_path(project_root):
+    """Prepend the project root to sys.path for the duration of the session."""
     sys.path.insert(0, str(project_root))
     yield
     # leave path as-is for session
@@ -27,10 +36,11 @@ def add_project_to_path(project_root):
 
 @pytest.fixture
 def rotation_mod(monkeypatch):
-    """
-    Import the rotation module with safe stubs for external deps:
-    - config.Config
-    - pytesseract (if missing)
+    """Import the `rotation` package with safe stubs for external dependencies.
+
+    Stubs:
+      - `config.Config` to satisfy `.config` import.
+      - `pytesseract.image_to_osd` if pytesseract isn't present.
     """
     # Provide a dummy config module if missing
     cfg_mod = types.ModuleType("config")
@@ -64,6 +74,7 @@ def rotation_mod(monkeypatch):
 
 
 def test_estimate_orientation_counts(rotation_mod):
+    """Counts horizontal vs. vertical boxes; near-squares are ignored."""
     boxes = [
         (0, 0, 120, 10),  # horizontal (w/h = 12)
         (0, 0, 10, 120),  # vertical   (h/w = 12)
@@ -80,6 +91,7 @@ def test_estimate_orientation_counts(rotation_mod):
 
 
 def test_detect_osd_rotation_parsing(rotation_mod, monkeypatch):
+    """Parses rotation angle from Tesseract OSD output."""
     # Fake OSD output
     def fake_osd(_img):
         return "Orientation in degrees: 0\nRotate: 270\nSome other lines..."
@@ -92,6 +104,7 @@ def test_detect_osd_rotation_parsing(rotation_mod, monkeypatch):
 
 
 def test_rotate_if_needed_osd_90(rotation_mod, monkeypatch):
+    """Rotates 90° CW when OSD suggests 90."""
     # Force OSD to request 90°
     monkeypatch.setattr(
         rotation_mod.pytesseract, "image_to_osd", lambda _img: "Rotate: 90"
@@ -106,6 +119,7 @@ def test_rotate_if_needed_osd_90(rotation_mod, monkeypatch):
 
 
 def test_rotate_if_needed_east_fallback(rotation_mod, monkeypatch):
+    """Falls back to EAST heuristic when OSD returns 0."""
     # OSD says 0 — fallback to EAST heuristic: more vertical boxes -> rotate CW
     monkeypatch.setattr(
         rotation_mod.pytesseract, "image_to_osd", lambda _img: "Rotate: 0"
@@ -123,6 +137,7 @@ def test_rotate_if_needed_east_fallback(rotation_mod, monkeypatch):
 
 
 def test_iter_image_files_nonrecursive_and_recursive(tmp_path, rotation_mod):
+    """Finds image files with and without recursion, filters non-images."""
     # Create files
     (tmp_path / "a.png").write_bytes(b"")
     (tmp_path / "b.jpg").write_bytes(b"")
@@ -149,6 +164,7 @@ def test_iter_image_files_nonrecursive_and_recursive(tmp_path, rotation_mod):
 
 
 def test_process_one_image_rotated_and_saved(tmp_path, rotation_mod, monkeypatch):
+    """Saves a new file with `_rotated` suffix when a rotation occurs."""
     # Fake image read
     monkeypatch.setattr(
         rotation_mod.cv2, "imread", lambda p: np.zeros((10, 10, 3), dtype=np.uint8)
@@ -196,6 +212,7 @@ def test_process_one_image_rotated_and_saved(tmp_path, rotation_mod, monkeypatch
 def test_process_one_image_unchanged_saved_when_flag(
     tmp_path, rotation_mod, monkeypatch
 ):
+    """Saves original filename when no rotation and `save_unchanged=True`."""
     # Fake image read
     monkeypatch.setattr(
         rotation_mod.cv2, "imread", lambda p: np.zeros((10, 10, 3), dtype=np.uint8)
@@ -235,6 +252,7 @@ def test_process_one_image_unchanged_saved_when_flag(
 
 
 def test_main_single_image_flow(rotation_mod, monkeypatch, tmp_path):
+    """Drives `main()` in single-image mode and verifies argument plumbing."""
     # Stub argparse returns
     args = SimpleNamespace(
         image_path=str(tmp_path / "one.png"),
@@ -282,6 +300,7 @@ def test_main_single_image_flow(rotation_mod, monkeypatch, tmp_path):
 
 
 def test_main_directory_flow(rotation_mod, monkeypatch, tmp_path):
+    """Drives `main()` in directory mode and ensures each image path is processed."""
     # Prepare args for directory mode
     args = SimpleNamespace(
         image_path=str(tmp_path / "unused.png"),

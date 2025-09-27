@@ -69,8 +69,21 @@ log = logging.getLogger(__name__)
 
 
 class DnnNet(Protocol):
-    def setInput(self, blob: Any) -> None: ...
-    def forward(self, out_names: Iterable[str]) -> Tuple[np.ndarray, np.ndarray]: ...
+    def setInput(self, blob: Any) -> None:
+        """Set the input blob for the DNN before a forward pass."""
+        ...
+
+    def forward(self, out_names: Iterable[str]) -> Tuple[np.ndarray, np.ndarray]:
+        """Run a forward pass and return (scores, geometry) tensors for EAST.
+
+        Args:
+            out_names: Layer names to fetch (e.g., ["feature_fusion/Conv_7/Sigmoid",
+                "feature_fusion/concat_3"]).
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray]: Scores map and geometry map.
+        """
+        ...
 
 
 def detect_east_boxes(

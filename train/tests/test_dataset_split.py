@@ -8,6 +8,25 @@ from focr_table_detector.dataset import SplitConfig, prepare_dataset
 
 
 def make_dummy_yolo(tmp: Path, n: int) -> Tuple[Path, Path]:
+    """Create a minimal YOLO-style dataset tree for tests.
+
+    Builds:
+        tmp/
+          images/ img_0.jpg, ..., img_{n-1}.jpg
+          labels/ img_1.txt, img_2.txt, ... (about 2/3 have labels)
+
+    Notes:
+        - Image bytes are dummy placeholders; only filesystem IO is exercised.
+        - Every 3rd image (i % 3 == 0) intentionally lacks a label to trigger
+          code paths that warn/handle missing annotations.
+
+    Args:
+        tmp: Temporary root directory to create the dataset in.
+        n: Number of image files to generate.
+
+    Returns:
+        A tuple (images_dir, labels_dir) pointing to the generated folders.
+    """
     images = tmp / "images"
     labels = tmp / "labels"
     images.mkdir(parents=True, exist_ok=True)
@@ -25,6 +44,13 @@ def make_dummy_yolo(tmp: Path, n: int) -> Tuple[Path, Path]:
 
 
 def test_prepare_dataset_copies_files(tmp_path: Path) -> None:
+    """Copies files into split folders and returns counts summing to total.
+
+    Asserts:
+        - Sum of returned (n_train, n_val, n_test) equals number of inputs.
+        - `train/valid/test` directories (with images/labels subfolders) exist.
+        - With a fixed seed, the split is roughly ordered: train ≥ val ≥ test.
+    """
     src_images, src_labels = make_dummy_yolo(tmp_path / "src", 20)
     dest = tmp_path / "out"
 
@@ -48,6 +74,15 @@ def test_prepare_dataset_copies_files(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("ratios", [(0.7, 0.2, 0.1), (7, 2, 1)])
 def test_split_normalization(tmp_path: Path, ratios) -> None:
+    """Accepts both proportions and weights for split ratios.
+
+    Parameterized Cases:
+        - (0.7, 0.2, 0.1): direct proportions
+        - (7, 2, 1): weights that normalize to the same proportions
+
+    Asserts:
+        The sum of (n_train, n_val, n_test) equals the number of inputs.
+    """
     src_images, src_labels = make_dummy_yolo(tmp_path / "src", 10)
     dest = tmp_path / "out"
     train, val, test = ratios

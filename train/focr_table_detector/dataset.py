@@ -9,11 +9,30 @@ from typing import Iterable, List, Tuple
 
 @dataclass(frozen=True)
 class SplitConfig:
+    """Configuration for dataset split ratios.
+
+    Attributes:
+        train (float): Proportion assigned to the training set. Defaults to 0.7.
+        val (float): Proportion assigned to the validation set. Defaults to 0.2.
+        test (float): Proportion assigned to the test set. Defaults to 0.1.
+    """
+
     train: float = 0.7
     val: float = 0.2
     test: float = 0.1
 
     def normalized(self) -> "SplitConfig":
+        """Return a new SplitConfig whose ratios sum to 1.0.
+
+        This scales the (train, val, test) values by their total so that
+        `train + val + test == 1.0`.
+
+        Returns:
+            SplitConfig: A new config with normalized ratios.
+
+        Raises:
+            ValueError: If the sum of the ratios is non-positive.
+        """
         total = self.train + self.val + self.test
         if total <= 0:
             raise ValueError("Split ratios must be positive.")
