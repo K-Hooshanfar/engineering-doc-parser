@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Tuple
 
 import pytest
-from .focr_table_detector.dataset import SplitConfig, prepare_dataset
+from train.focr_table_detector.dataset import SplitConfig, prepare_dataset
 
 
 def make_dummy_yolo(tmp: Path, n: int) -> Tuple[Path, Path]:
