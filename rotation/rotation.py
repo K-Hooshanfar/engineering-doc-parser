@@ -61,8 +61,10 @@ def _call_process_one_image(pkg, image_path, net, **kwargs):
         return fn(image_path=image_path, net=net, **kwargs)  # real impl needs keywords
 
 
-# Keep the net type loose so tests can stub with dummy objects.
-DnnNet = object
+class DnnNet(Protocol):
+    """Protocol for OpenCV DNN network objects."""
+    def setInput(self, blob: np.ndarray) -> None: ...
+    def forward(self, outputNames: List[str]) -> Tuple[np.ndarray, np.ndarray]: ...
 
 
 # ---------- Logging ----------
@@ -339,7 +341,7 @@ def iter_image_files(
     exts_low = {e.lower().lstrip(".") for e in exts}
     root_path = Path(root)
     if not root_path.exists():
-        return iter(())
+        return
     it: Iterable[Path] = root_path.rglob("*") if recursive else root_path.glob("*")
     for p in it:
         if p.is_file() and p.suffix.lower().lstrip(".") in exts_low:
