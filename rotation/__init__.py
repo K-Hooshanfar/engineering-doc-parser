@@ -1,3 +1,12 @@
+import argparse as _argparse
+import os as _os
+import cv2 as _cv2
+import pytesseract as _pytesseract
+
+argparse = _argparse
+os = _os
+cv2 = _cv2
+pytesseract = _pytesseract
 from .rotation import (
     build_parser,
     detect_east_boxes,
@@ -22,4 +31,8 @@ __all__ = [
     "iter_image_files",
     "process_one_image",
     "main",
+    "argparse",
+    "os",
+    "cv2",
+    "pytesseract",
 ]
