@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Tuple
 
 import pytest
-
 from focr_table_detector.dataset import SplitConfig, prepare_dataset
 
 

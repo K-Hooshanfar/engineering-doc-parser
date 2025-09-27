@@ -20,16 +20,16 @@ CLI examples:
   python rotation.py --input-dir scans -m models/east.pb -o out --log-level INFO --log-file run.log
 """
 
-import os
-import re
 import argparse
 import logging
-from typing import List, Tuple, Optional, Iterable
+import os
+import re
+from typing import Iterable, List, Optional, Tuple
+
 import cv2
 import numpy as np
 import pytesseract
-
-from ..config import Config
+from config import Config
 
 
 # --------------------------- Logging helpers ---------------------------------
@@ -65,10 +65,10 @@ log = logging.getLogger(__name__)
 
 
 def detect_east_boxes(
-        image: np.ndarray,
-        net: cv2.dnn_Net,
-        conf_thresh: float = 0.5,
-        nms_thresh: float = 0.4
+    image: np.ndarray,
+    net: cv2.dnn_Net,
+    conf_thresh: float = 0.5,
+    nms_thresh: float = 0.4,
 ) -> List[Tuple[int, int, int, int]]:
     """Detect text boxes with EAST (vectorized)."""
     H, W = image.shape[:2]
@@ -76,15 +76,12 @@ def detect_east_boxes(
     rW, rH = W / newW, H / newH
 
     blob = cv2.dnn.blobFromImage(
-        image, 1.0, (newW, newH),
-        (123.68, 116.78, 103.94),
-        swapRB=True, crop=False
+        image, 1.0, (newW, newH), (123.68, 116.78, 103.94), swapRB=True, crop=False
     )
     net.setInput(blob)
-    scores, geometry = net.forward([
-        "feature_fusion/Conv_7/Sigmoid",
-        "feature_fusion/concat_3"
-    ])
+    scores, geometry = net.forward(
+        ["feature_fusion/Conv_7/Sigmoid", "feature_fusion/concat_3"]
+    )
 
     scores = scores[0, 0]
     geom = geometry[0]
@@ -116,9 +113,17 @@ def detect_east_boxes(
     confidences = scores[ys, xs].tolist()
 
     indices = cv2.dnn.NMSBoxes(rects_int, confidences, conf_thresh, nms_thresh)
-    idxs = np.array(indices).flatten().astype(int) if len(indices) else np.array([], dtype=int)
+    idxs = (
+        np.array(indices).flatten().astype(int)
+        if len(indices)
+        else np.array([], dtype=int)
+    )
     if idxs.size == 0:
-        log.debug("EAST: NMS filtered all boxes (conf_thresh=%.2f, nms_thresh=%.2f)", conf_thresh, nms_thresh)
+        log.debug(
+            "EAST: NMS filtered all boxes (conf_thresh=%.2f, nms_thresh=%.2f)",
+            conf_thresh,
+            nms_thresh,
+        )
         return []
 
     rects_resized[:, [0, 2]] *= rW
@@ -129,39 +134,43 @@ def detect_east_boxes(
 
 
 def estimate_orientation(
-        boxes: List[Tuple[int, int, int, int]],
-        ratio_thresh: float = 1.2
+    boxes: List[Tuple[int, int, int, int]], ratio_thresh: float = 1.2
 ) -> Tuple[int, int]:
     """Count horiz vs vert boxes."""
     horiz = 0
     vert = 0
-    for (x1, y1, x2, y2) in boxes:
+    for x1, y1, x2, y2 in boxes:
         w = max(1, x2 - x1)
         h = max(1, y2 - y1)
         if w / h > ratio_thresh:
             horiz += 1
         elif h / w > ratio_thresh:
             vert += 1
-    log.debug("Orientation counts: horiz=%d vert=%d (ratio_thresh=%.2f)", horiz, vert, ratio_thresh)
+    log.debug(
+        "Orientation counts: horiz=%d vert=%d (ratio_thresh=%.2f)",
+        horiz,
+        vert,
+        ratio_thresh,
+    )
     return horiz, vert
 
 
 def detect_osd_rotation(image: np.ndarray) -> int:
     """Use Tesseract OSD to get rotation (0/90/180/270)."""
     osd = pytesseract.image_to_osd(image)
-    match = re.search(r'Rotate: (\d+)', osd)
+    match = re.search(r"Rotate: (\d+)", osd)
     angle = int(match.group(1)) if match else 0
     log.debug("OSD rotation suggestion: %d", angle)
     return angle
 
 
 def rotate_if_needed(
-        img: np.ndarray,
-        boxes: List[Tuple[int, int, int, int]],
-        *,
-        use_osd: bool = True,
-        ratio_thresh: float = 1.2,
-        force_angle: Optional[int] = None
+    img: np.ndarray,
+    boxes: List[Tuple[int, int, int, int]],
+    *,
+    use_osd: bool = True,
+    ratio_thresh: float = 1.2,
+    force_angle: Optional[int] = None,
 ) -> Tuple[np.ndarray, bool, str]:
     """Decide rotation via forced angle → OSD → EAST heuristic."""
     if force_angle in {0, 90, 180, 270}:
@@ -179,7 +188,11 @@ def rotate_if_needed(
     else:
         horiz, vert = estimate_orientation(boxes, ratio_thresh=ratio_thresh)
         if vert > horiz:
-            return cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE), True, "Rotated 90° CW (EAST fallback)"
+            return (
+                cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE),
+                True,
+                "Rotated 90° CW (EAST fallback)",
+            )
         else:
             return img, False, "No orientation needed"
 
@@ -188,9 +201,9 @@ def save_image(img: np.ndarray, output_path: str) -> None:
     """Save with sensible defaults per extension."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     ext = os.path.splitext(output_path)[1].lower()
-    if ext in ['.jpg', '.jpeg']:
+    if ext in [".jpg", ".jpeg"]:
         params = [cv2.IMWRITE_JPEG_QUALITY, 100]
-    elif ext == '.png':
+    elif ext == ".png":
         params = [cv2.IMWRITE_PNG_COMPRESSION, 0]
     else:
         params = []
@@ -208,78 +221,91 @@ def build_parser() -> argparse.ArgumentParser:
     )
     # Single-image path (as before)
     p.add_argument(
-        "-i", "--image-path",
+        "-i",
+        "--image-path",
         default="test_images/3.png",
-        help="Path to a single input image."
+        help="Path to a single input image.",
     )
     # NEW: directory input
+    p.add_argument("--input-dir", help="Process all images in this directory.")
     p.add_argument(
-        "--input-dir",
-        help="Process all images in this directory."
+        "--recursive",
+        action="store_true",
+        help="Recurse into subdirectories when using --input-dir.",
     )
     p.add_argument(
-        "--recursive", action="store_true",
-        help="Recurse into subdirectories when using --input-dir."
-    )
-    p.add_argument(
-        "--exts", nargs="+",
+        "--exts",
+        nargs="+",
         default=["png", "jpg", "jpeg", "tif", "tiff", "bmp", "webp"],
-        help="File extensions to include when using --input-dir (space-separated, no dots)."
+        help="File extensions to include when using --input-dir (space-separated, no dots).",
     )
 
     p.add_argument(
-        "-m", "--east-model",
+        "-m",
+        "--east-model",
         default=Config.EAST_TEXT_DETECTOR,
-        help="Path to the frozen EAST detector .pb model."
+        help="Path to the frozen EAST detector .pb model.",
     )
     p.add_argument(
-        "-o", "--result-dir",
-        default="result",
-        help="Directory to write outputs."
+        "-o", "--result-dir", default="result", help="Directory to write outputs."
     )
     p.add_argument(
-        "--save-unchanged", action="store_true",
-        help="Also save images that do not need rotation (keeps original filename)."
+        "--save-unchanged",
+        action="store_true",
+        help="Also save images that do not need rotation (keeps original filename).",
     )
 
     p.add_argument(
-        "--conf-thresh", type=float, default=0.5,
-        help="Confidence threshold for EAST detections."
+        "--conf-thresh",
+        type=float,
+        default=0.5,
+        help="Confidence threshold for EAST detections.",
     )
     p.add_argument(
-        "--nms-thresh", type=float, default=0.4,
-        help="NMS IoU threshold for EAST boxes."
+        "--nms-thresh",
+        type=float,
+        default=0.4,
+        help="NMS IoU threshold for EAST boxes.",
     )
     p.add_argument(
-        "--ratio-thresh", type=float, default=1.2,
-        help="Aspect-ratio threshold for EAST fallback (horiz vs vert)."
+        "--ratio-thresh",
+        type=float,
+        default=1.2,
+        help="Aspect-ratio threshold for EAST fallback (horiz vs vert).",
     )
     p.add_argument(
-        "--no-osd", action="store_true",
-        help="Disable Tesseract OSD; rely only on EAST fallback."
+        "--no-osd",
+        action="store_true",
+        help="Disable Tesseract OSD; rely only on EAST fallback.",
     )
     p.add_argument(
-        "--force-angle", type=int, choices=[0, 90, 180, 270],
-        help="Force a fixed rotation angle (overrides OSD and fallback)."
+        "--force-angle",
+        type=int,
+        choices=[0, 90, 180, 270],
+        help="Force a fixed rotation angle (overrides OSD and fallback).",
     )
     # Logging controls
     p.add_argument(
-        "-v", "--verbose", action="store_true",
-        help="Enable DEBUG logging (overridden by --log-level if provided)."
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable DEBUG logging (overridden by --log-level if provided).",
     )
     p.add_argument(
         "--log-level",
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Logging level (default INFO; DEBUG if -v)."
+        help="Logging level (default INFO; DEBUG if -v).",
     )
     p.add_argument(
         "--log-file",
-        help="Optional path to write logs to a file in addition to console."
+        help="Optional path to write logs to a file in addition to console.",
     )
     return p
 
 
-def iter_image_files(root_dir: str, exts: Iterable[str], recursive: bool) -> Iterable[str]:
+def iter_image_files(
+    root_dir: str, exts: Iterable[str], recursive: bool
+) -> Iterable[str]:
     """Yield image file paths from a directory."""
     exts = tuple(f".{e.lower().lstrip('.')}" for e in exts)
     if recursive:
@@ -305,7 +331,7 @@ def process_one_image(
     use_osd: bool,
     force_angle: Optional[int],
     save_unchanged: bool,
-    verbose: bool  # kept for backward compatibility; not used directly
+    verbose: bool,  # kept for backward compatibility; not used directly
 ) -> None:
     """Run pipeline for one image path."""
     if not os.path.isfile(image_path):
@@ -374,13 +400,19 @@ def main() -> None:
 
         files = list(iter_image_files(input_dir, exts, recursive))
         if not files:
-            log.warning("No images found in %s (exts=%s, recursive=%s).", input_dir, exts, recursive)
+            log.warning(
+                "No images found in %s (exts=%s, recursive=%s).",
+                input_dir,
+                exts,
+                recursive,
+            )
             return
 
         log.info("Found %d images. Writing to: %s", len(files), result_dir)
         for path in files:
             process_one_image(
-                path, net,
+                path,
+                net,
                 result_dir=result_dir,
                 conf_thresh=conf_thresh,
                 nms_thresh=nms_thresh,
@@ -388,7 +420,7 @@ def main() -> None:
                 use_osd=use_osd,
                 force_angle=force_angle,
                 save_unchanged=save_unchanged,
-                verbose=args.verbose
+                verbose=args.verbose,
             )
     else:
         if not os.path.isfile(image_path):
@@ -400,7 +432,8 @@ def main() -> None:
         net = cv2.dnn.readNet(east_model_path)
 
         process_one_image(
-            image_path, net,
+            image_path,
+            net,
             result_dir=result_dir,
             conf_thresh=conf_thresh,
             nms_thresh=nms_thresh,
@@ -408,7 +441,7 @@ def main() -> None:
             use_osd=use_osd,
             force_angle=force_angle,
             save_unchanged=save_unchanged,
-            verbose=args.verbose
+            verbose=args.verbose,
         )
 
 

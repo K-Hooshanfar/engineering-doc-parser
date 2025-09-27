@@ -1,16 +1,16 @@
+import importlib
 import sys
 import types
-import importlib
-from types import SimpleNamespace
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
-
 # -------------------------
 # Test bootstrap / fixtures
 # -------------------------
+
 
 @pytest.fixture(scope="session")
 def project_root():
@@ -34,21 +34,26 @@ def rotation_mod(monkeypatch):
     """
     # Provide a dummy config module if missing
     cfg_mod = types.ModuleType("config")
+
     class _Config:
         EAST_TEXT_DETECTOR = "dummy_east.pb"
+
     cfg_mod.Config = _Config
     monkeypatch.setitem(sys.modules, "config", cfg_mod)
 
     # Provide a dummy pytesseract if it's not installed
     if "pytesseract" not in sys.modules:
         pt = types.ModuleType("pytesseract")
+
         def _image_to_osd(_img):
             return "Rotate: 0"
+
         pt.image_to_osd = _image_to_osd
         monkeypatch.setitem(sys.modules, "pytesseract", pt)
 
     # Import (or reload) the target module
     import rotation
+
     rotation = importlib.reload(rotation)
     return rotation
 
@@ -57,11 +62,17 @@ def rotation_mod(monkeypatch):
 # Unit tests
 # --------------
 
+
 def test_estimate_orientation_counts(rotation_mod):
     boxes = [
         (0, 0, 120, 10),  # horizontal (w/h = 12)
         (0, 0, 10, 120),  # vertical   (h/w = 12)
-        (5, 5, 17, 15),   # near-square: w=12, h=10 -> w/h = 1.2 (ignored; code uses > threshold)
+        (
+            5,
+            5,
+            17,
+            15,
+        ),  # near-square: w=12, h=10 -> w/h = 1.2 (ignored; code uses > threshold)
     ]
     horiz, vert = rotation_mod.estimate_orientation(boxes, ratio_thresh=1.2)
     assert horiz == 1
@@ -72,6 +83,7 @@ def test_detect_osd_rotation_parsing(rotation_mod, monkeypatch):
     # Fake OSD output
     def fake_osd(_img):
         return "Orientation in degrees: 0\nRotate: 270\nSome other lines..."
+
     monkeypatch.setattr(rotation_mod.pytesseract, "image_to_osd", fake_osd)
 
     # The image isn't used by our fake, just pass a dummy array
@@ -81,7 +93,9 @@ def test_detect_osd_rotation_parsing(rotation_mod, monkeypatch):
 
 def test_rotate_if_needed_osd_90(rotation_mod, monkeypatch):
     # Force OSD to request 90°
-    monkeypatch.setattr(rotation_mod.pytesseract, "image_to_osd", lambda _img: "Rotate: 90")
+    monkeypatch.setattr(
+        rotation_mod.pytesseract, "image_to_osd", lambda _img: "Rotate: 90"
+    )
 
     img = np.zeros((10, 20, 3), dtype=np.uint8)  # H=10, W=20
     out, changed, msg = rotation_mod.rotate_if_needed(img, boxes=[], use_osd=True)
@@ -93,11 +107,15 @@ def test_rotate_if_needed_osd_90(rotation_mod, monkeypatch):
 
 def test_rotate_if_needed_east_fallback(rotation_mod, monkeypatch):
     # OSD says 0 — fallback to EAST heuristic: more vertical boxes -> rotate CW
-    monkeypatch.setattr(rotation_mod.pytesseract, "image_to_osd", lambda _img: "Rotate: 0")
+    monkeypatch.setattr(
+        rotation_mod.pytesseract, "image_to_osd", lambda _img: "Rotate: 0"
+    )
 
     img = np.zeros((20, 10, 3), dtype=np.uint8)
     boxes = [(0, 0, 10, 80)]  # tall box (vertical)
-    out, changed, msg = rotation_mod.rotate_if_needed(img, boxes, use_osd=True, ratio_thresh=1.2)
+    out, changed, msg = rotation_mod.rotate_if_needed(
+        img, boxes, use_osd=True, ratio_thresh=1.2
+    )
     assert changed is True
     assert "EAST fallback" in msg
     # 90 CW: (H, W) -> (W, H)
@@ -114,28 +132,44 @@ def test_iter_image_files_nonrecursive_and_recursive(tmp_path, rotation_mod):
     (sub / "c.png").write_bytes(b"")
 
     # Non-recursive
-    files_nonrec = list(rotation_mod.iter_image_files(str(tmp_path), ["png", "jpg"], recursive=False))
+    files_nonrec = list(
+        rotation_mod.iter_image_files(str(tmp_path), ["png", "jpg"], recursive=False)
+    )
     assert set(map(Path, files_nonrec)) == {tmp_path / "a.png", tmp_path / "b.jpg"}
 
     # Recursive
-    files_rec = list(rotation_mod.iter_image_files(str(tmp_path), ["png", "jpg"], recursive=True))
-    assert set(map(Path, files_rec)) == {tmp_path / "a.png", tmp_path / "b.jpg", sub / "c.png"}
+    files_rec = list(
+        rotation_mod.iter_image_files(str(tmp_path), ["png", "jpg"], recursive=True)
+    )
+    assert set(map(Path, files_rec)) == {
+        tmp_path / "a.png",
+        tmp_path / "b.jpg",
+        sub / "c.png",
+    }
 
 
 def test_process_one_image_rotated_and_saved(tmp_path, rotation_mod, monkeypatch):
     # Fake image read
-    monkeypatch.setattr(rotation_mod.cv2, "imread", lambda p: np.zeros((10, 10, 3), dtype=np.uint8))
+    monkeypatch.setattr(
+        rotation_mod.cv2, "imread", lambda p: np.zeros((10, 10, 3), dtype=np.uint8)
+    )
 
     # Avoid running EAST/Tesseract: stub detect + rotate
-    monkeypatch.setattr(rotation_mod, "detect_east_boxes", lambda img, net, conf_thresh, nms_thresh: [])
+    monkeypatch.setattr(
+        rotation_mod, "detect_east_boxes", lambda img, net, conf_thresh, nms_thresh: []
+    )
+
     def fake_rotate(img, boxes, **kwargs):
         return img.copy(), True, "Rotated 90° CCW"
+
     monkeypatch.setattr(rotation_mod, "rotate_if_needed", fake_rotate)
 
     # Capture saves
     saved = []
+
     def fake_save(img, output_path):
         saved.append(output_path)
+
     monkeypatch.setattr(rotation_mod, "save_image", fake_save)
 
     # Run
@@ -152,21 +186,29 @@ def test_process_one_image_rotated_and_saved(tmp_path, rotation_mod, monkeypatch
         use_osd=True,
         force_angle=None,
         save_unchanged=False,
-        verbose=False
+        verbose=False,
     )
 
     assert len(saved) == 1
     assert saved[0].endswith("scan1_rotated.png")
 
 
-def test_process_one_image_unchanged_saved_when_flag(tmp_path, rotation_mod, monkeypatch):
+def test_process_one_image_unchanged_saved_when_flag(
+    tmp_path, rotation_mod, monkeypatch
+):
     # Fake image read
-    monkeypatch.setattr(rotation_mod.cv2, "imread", lambda p: np.zeros((10, 10, 3), dtype=np.uint8))
+    monkeypatch.setattr(
+        rotation_mod.cv2, "imread", lambda p: np.zeros((10, 10, 3), dtype=np.uint8)
+    )
 
     # No rotation needed
-    monkeypatch.setattr(rotation_mod, "detect_east_boxes", lambda img, net, conf_thresh, nms_thresh: [])
+    monkeypatch.setattr(
+        rotation_mod, "detect_east_boxes", lambda img, net, conf_thresh, nms_thresh: []
+    )
+
     def fake_rotate(img, boxes, **kwargs):
         return img, False, "No orientation needed"
+
     monkeypatch.setattr(rotation_mod, "rotate_if_needed", fake_rotate)
 
     saved = []
@@ -185,7 +227,7 @@ def test_process_one_image_unchanged_saved_when_flag(tmp_path, rotation_mod, mon
         use_osd=True,
         force_angle=None,
         save_unchanged=True,
-        verbose=False
+        verbose=False,
     )
 
     assert len(saved) == 1
@@ -215,7 +257,9 @@ def test_main_single_image_flow(rotation_mod, monkeypatch, tmp_path):
     Path(args.image_path).write_bytes(b"img")
     Path(args.east_model).write_bytes(b"pb")
 
-    monkeypatch.setattr(rotation_mod.argparse.ArgumentParser, "parse_args", lambda self=None: args)
+    monkeypatch.setattr(
+        rotation_mod.argparse.ArgumentParser, "parse_args", lambda self=None: args
+    )
 
     # Pretend these exist
     monkeypatch.setattr(rotation_mod.os.path, "isfile", lambda p: True)
@@ -225,9 +269,11 @@ def test_main_single_image_flow(rotation_mod, monkeypatch, tmp_path):
 
     # Capture process_one_image invocation
     called = {}
+
     def fake_process(img_path, net, **kwargs):
         called["img_path"] = img_path
         called["kwargs"] = kwargs
+
     monkeypatch.setattr(rotation_mod, "process_one_image", fake_process)
 
     rotation_mod.main()
@@ -257,18 +303,24 @@ def test_main_directory_flow(rotation_mod, monkeypatch, tmp_path):
     Path(args.input_dir).mkdir(parents=True, exist_ok=True)
     Path(args.east_model).write_bytes(b"pb")
 
-    monkeypatch.setattr(rotation_mod.argparse.ArgumentParser, "parse_args", lambda self=None: args)
+    monkeypatch.setattr(
+        rotation_mod.argparse.ArgumentParser, "parse_args", lambda self=None: args
+    )
     monkeypatch.setattr(rotation_mod.os.path, "isfile", lambda p: True)
     monkeypatch.setattr(rotation_mod.os.path, "isdir", lambda p: True)
     monkeypatch.setattr(rotation_mod.cv2.dnn, "readNet", lambda p: object())
 
     # Make iter_image_files return some files
     files = [str(Path(args.input_dir) / "a.png"), str(Path(args.input_dir) / "b.jpg")]
-    monkeypatch.setattr(rotation_mod, "iter_image_files", lambda root, exts, recursive: files)
+    monkeypatch.setattr(
+        rotation_mod, "iter_image_files", lambda root, exts, recursive: files
+    )
 
     called = []
+
     def fake_process(img_path, net, **kwargs):
         called.append(img_path)
+
     monkeypatch.setattr(rotation_mod, "process_one_image", fake_process)
 
     rotation_mod.main()
