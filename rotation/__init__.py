@@ -3,8 +3,10 @@
 # 1) All imports at the very top
 import argparse as _argparse
 import os as _os
+
 import cv2 as _cv2
 import pytesseract as _pytesseract  # type: ignore[import-not-found,import-untyped]
+
 from .rotation import (
     build_parser,
     detect_east_boxes,
