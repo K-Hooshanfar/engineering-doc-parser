@@ -67,8 +67,16 @@ jobs:
         shell: bash
         run: |
           # Check for your specific project structure
+          targets=""
           if [ -d "train" ]; then
-            echo "target=train" >> "$GITHUB_OUTPUT"
+            targets="$targets train"
+          fi
+          if [ -d "rotation" ]; then
+            targets="$targets rotation"
+          fi
+          
+          if [ -n "$targets" ]; then
+            echo "target=$targets" >> "$GITHUB_OUTPUT"
           elif [ -d "src" ]; then
             echo "target=src" >> "$GITHUB_OUTPUT"
           else
@@ -129,8 +137,12 @@ jobs:
       - name: Mypy (type checking)
         run: |
           # Check your specific project structure
-          if [ -d "train" ]; then
+          if [ -d "train" ] && [ -d "rotation" ]; then
+            mypy train rotation
+          elif [ -d "train" ]; then
             mypy train
+          elif [ -d "rotation" ]; then
+            mypy rotation
           elif [ -d "src" ]; then
             mypy src
           else
@@ -144,8 +156,12 @@ jobs:
           export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}."
           
           # Run pytest with coverage for your project structure
-          if [ -d "train" ]; then
+          if [ -d "train" ] && [ -d "rotation" ]; then
+            pytest --cov=train --cov=rotation --cov-report=term-missing --cov-report=json --cov-fail-under=85 | tee pytest_output.txt || true
+          elif [ -d "train" ]; then
             pytest --cov=train --cov-report=term-missing --cov-report=json --cov-fail-under=85 | tee pytest_output.txt || true
+          elif [ -d "rotation" ]; then
+            pytest --cov=rotation --cov-report=term-missing --cov-report=json --cov-fail-under=85 | tee pytest_output.txt || true
           elif [ -d "src" ]; then
             pytest --cov=src --cov-report=term-missing --cov-report=json --cov-fail-under=85 | tee pytest_output.txt || true
           else
@@ -203,7 +219,7 @@ jobs:
                               missing_str += f", ... +{len(missing_lines) - 5} more"
 
                           # Shorten file path for readability
-                          short_path = file_path.replace("train/", "").replace("src/", "")
+                          short_path = file_path.replace("train/", "").replace("rotation/", "").replace("src/", "")
                           f.write(f"| `{short_path}` | {coverage_pct:.1f}% | {missing_str or 'None'} |\n")
               else:
                   # Fallback: parse from terminal output
