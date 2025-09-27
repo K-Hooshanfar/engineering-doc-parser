@@ -29,7 +29,7 @@ from typing import Iterable, Iterator, List, Sequence, Tuple, Optional
 
 import cv2
 import numpy as np
-import pytesseract  # noqa: F401  # exposed for pkg.pytesseract when run as a script
+import pytesseract  # type: ignore[import-untyped]  # noqa: F401 - used via _pkg() dynamic lookup for standalone execution
 
 
 # ---------- Internal helpers ----------
