@@ -29,7 +29,7 @@ from typing import Iterable, List, Optional, Tuple
 import cv2
 import numpy as np
 import pytesseract
-from config import Config
+from rotation.config import Config
 
 
 # --------------------------- Logging helpers ---------------------------------
