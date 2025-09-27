@@ -66,7 +66,18 @@ jobs:
         id: pylint_target
         shell: bash
         run: |
-          if [ -d "src" ]; then
+          # Check for your specific project structure
+          targets=""
+          if [ -d "train" ]; then
+            targets="$targets train"
+          fi
+          if [ -d "rotation" ]; then
+            targets="$targets rotation"
+          fi
+          
+          if [ -n "$targets" ]; then
+            echo "target=$targets" >> "$GITHUB_OUTPUT"
+          elif [ -d "src" ]; then
             echo "target=src" >> "$GITHUB_OUTPUT"
           else
             # Fallback to tracked Python files at repo root
@@ -125,16 +136,33 @@ jobs:
 
       - name: Mypy (type checking)
         run: |
-          if [ -d "src" ]; then
+          # Check your specific project structure
+          if [ -d "train" ] && [ -d "rotation" ]; then
+            mypy train rotation
+          elif [ -d "train" ]; then
+            mypy train
+          elif [ -d "rotation" ]; then
+            mypy rotation
+          elif [ -d "src" ]; then
             mypy src
           else
             # Fallback: check repo root
             mypy .
           fi
 
-      - name: Pytest (coverage ≥ 15)
+      - name: Pytest (coverage ≥ 85%)
         run: |
-          if [ -d "src" ]; then
+          # Set PYTHONPATH to include project root for imports
+          export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}."
+          
+          # Run pytest with coverage for your project structure
+          if [ -d "train" ] && [ -d "rotation" ]; then
+            pytest --cov=train --cov=rotation --cov-report=term-missing --cov-report=json --cov-fail-under=85 | tee pytest_output.txt || true
+          elif [ -d "train" ]; then
+            pytest --cov=train --cov-report=term-missing --cov-report=json --cov-fail-under=85 | tee pytest_output.txt || true
+          elif [ -d "rotation" ]; then
+            pytest --cov=rotation --cov-report=term-missing --cov-report=json --cov-fail-under=85 | tee pytest_output.txt || true
+          elif [ -d "src" ]; then
             pytest --cov=src --cov-report=term-missing --cov-report=json --cov-fail-under=85 | tee pytest_output.txt || true
           else
             pytest --cov=. --cov-report=term-missing --cov-report=json --cov-fail-under=85 | tee pytest_output.txt || true
@@ -191,7 +219,7 @@ jobs:
                               missing_str += f", ... +{len(missing_lines) - 5} more"
 
                           # Shorten file path for readability
-                          short_path = file_path.replace("src/", "").replace("/home/phantom/Projects/avir-sample/avir-sample/", "")
+                          short_path = file_path.replace("train/", "").replace("rotation/", "").replace("src/", "")
                           f.write(f"| `{short_path}` | {coverage_pct:.1f}% | {missing_str or 'None'} |\n")
               else:
                   # Fallback: parse from terminal output

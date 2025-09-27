@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from focr_table_detector.dataset import SplitConfig, prepare_dataset
+from train.focr_table_detector.dataset import SplitConfig, prepare_dataset
 
 
 def main() -> None:
