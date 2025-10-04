@@ -1,8 +1,9 @@
-# .github/workflows/ci.yml
 name: CI
 
 on:
   pull_request:
+    branches: [ main, dev ]
+  push:
     branches: [ main, dev ]
 
 permissions:
@@ -66,7 +67,6 @@ jobs:
         id: pylint_target
         shell: bash
         run: |
-          # Check for your specific project structure
           targets=""
           if [ -d "train" ]; then
             targets="$targets train"
@@ -74,20 +74,20 @@ jobs:
           if [ -d "rotation" ]; then
             targets="$targets rotation"
           fi
-          
+          if [ -d "Inference" ]; then
+            targets="$targets Inference"
+          fi
+          if [ -f "pipeline.py" ]; then
+            targets="$targets pipeline.py"
+          fi
+
           if [ -n "$targets" ]; then
             echo "target=$targets" >> "$GITHUB_OUTPUT"
           elif [ -d "src" ]; then
             echo "target=src" >> "$GITHUB_OUTPUT"
           else
-            # Fallback to tracked Python files at repo root
             files=$(git ls-files '*.py' | tr '\n' ' ')
-            if [ -z "$files" ]; then
-              echo "No Python files found; defaulting to '.'"
-              echo "target=." >> "$GITHUB_OUTPUT"
-            else
-              echo "target=$files" >> "$GITHUB_OUTPUT"
-            fi
+            echo "target=${files:-.}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Pylint (score ≥ 6.5)
@@ -96,7 +96,6 @@ jobs:
           set -o pipefail
           target="${{ steps.pylint_target.outputs.target }}"
           echo "Running pylint on: $target"
-          # Run pylint; do not fail immediately—capture output for score parsing
           pylint $target | tee pylint_output.txt || true
           echo
           echo "Parsing pylint score..."
@@ -124,7 +123,7 @@ jobs:
 
               if issues:
                   f.write("**Key Issues:**\n")
-                  for issue in issues[:10]:  # Limit to first 10 issues
+                  for issue in issues[:10]:
                       f.write(f"- {issue}\n")
                   if len(issues) > 10:
                       f.write(f"- ... and {len(issues) - 10} more issues\n")
@@ -136,112 +135,101 @@ jobs:
 
       - name: Mypy (type checking)
         run: |
-          # Check your specific project structure
-          if [ -d "train" ] && [ -d "rotation" ]; then
-            mypy train rotation
-          elif [ -d "train" ]; then
-            mypy train
-          elif [ -d "rotation" ]; then
-            mypy rotation
-          elif [ -d "src" ]; then
-            mypy src
-          else
-            # Fallback: check repo root
-            mypy .
-          fi
+          args=""
+          [ -d train ] && args="$args train"
+          [ -d rotation ] && args="$args rotation"
+          [ -d Inference ] && args="$args Inference"
+          [ -f pipeline.py ] && args="$args pipeline.py"
+          [ -z "$args" ] && args="."
+          mypy $args
+
+      - name: Bandit (security lint)
+        run: |
+          paths=""
+          [ -d train ] && paths="$paths train"
+          [ -d rotation ] && paths="$paths rotation"
+          [ -d Inference ] && paths="$paths Inference"
+          [ -f pipeline.py ] && paths="$paths pipeline.py"
+          bandit -q -r ${paths:-.}
 
       - name: Pytest (coverage ≥ 85%)
         run: |
-          # Set PYTHONPATH to include project root for imports
           export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}."
-          
-          # Run pytest with coverage for your project structure
+          cov_args=""
           if [ -d "train" ] && [ -d "rotation" ]; then
-            pytest --cov=train --cov=rotation --cov-report=term-missing --cov-report=json --cov-fail-under=85 | tee pytest_output.txt || true
+            cov_args="--cov=train --cov=rotation"
           elif [ -d "train" ]; then
-            pytest --cov=train --cov-report=term-missing --cov-report=json --cov-fail-under=85 | tee pytest_output.txt || true
+            cov_args="--cov=train"
           elif [ -d "rotation" ]; then
-            pytest --cov=rotation --cov-report=term-missing --cov-report=json --cov-fail-under=85 | tee pytest_output.txt || true
+            cov_args="--cov=rotation"
           elif [ -d "src" ]; then
-            pytest --cov=src --cov-report=term-missing --cov-report=json --cov-fail-under=85 | tee pytest_output.txt || true
+            cov_args="--cov=src"
           else
-            pytest --cov=. --cov-report=term-missing --cov-report=json --cov-fail-under=85 | tee pytest_output.txt || true
+            cov_args="--cov=."
+          fi
+          if [ -f "pipeline.py" ]; then
+            cov_args="$cov_args --cov=pipeline"
           fi
 
-          # Generate coverage summary for PR comment
+          # No '|| true' here: we want the step to fail on test/coverage failure
+          pytest $cov_args --cov-report=term-missing --cov-report=json --cov-fail-under=85 | tee pytest_output.txt
+
+      - name: Generate coverage summary (always)
+        if: always()
+        run: |
           python - <<'EOF'
           import json, sys, pathlib
 
-          # Parse pytest output for test results
-          pytest_output = ""
-          if pathlib.Path("pytest_output.txt").exists():
-              pytest_output = pathlib.Path("pytest_output.txt").read_text(errors="ignore")
+          pytest_output = pathlib.Path("pytest_output.txt").read_text(errors="ignore") if pathlib.Path("pytest_output.txt").exists() else ""
 
-          # Parse coverage JSON if available
           coverage_data = None
           if pathlib.Path("coverage.json").exists():
               with open("coverage.json") as f:
                   coverage_data = json.load(f)
 
           with open("coverage_summary.txt", "w") as f:
-              # Extract test results
-              test_passed = "passed" in pytest_output.lower()
-
               if "failed" in pytest_output.lower():
                   f.write("❌ **Tests Failed**\n\n")
-              elif test_passed:
+              elif "passed" in pytest_output.lower():
                   f.write("✅ **All Tests Passed**\n\n")
               else:
                   f.write("⚠️ **Test Status Unknown**\n\n")
 
-              # Extract coverage percentage
               if coverage_data:
-                  total_coverage = coverage_data.get("totals", {}).get("percent_covered", 0)
-                  f.write(f"**Coverage:** {total_coverage:.1f}%\n\n")
+                  total = coverage_data.get("totals", {}).get("percent_covered", 0)
+                  f.write(f"**Coverage:** {total:.1f}%\n\n")
+                  f.write(("✅" if total >= 85 else "❌") + (" Coverage check passed (≥ 85%)\n\n" if total >= 85 else " Coverage check failed (< 85%)\n\n"))
 
-                  if total_coverage >= 85:
-                      f.write("✅ Coverage check passed (≥ 85%)\n\n")
-                  else:
-                      f.write("❌ Coverage check failed (< 85%)\n\n")
-
-                  # Show file-by-file coverage
                   files_data = coverage_data.get("files", {})
                   if files_data:
                       f.write("**Coverage by File:**\n")
                       f.write("| File | Coverage | Missing Lines |\n")
                       f.write("|------|----------|---------------|\n")
-
                       for file_path, file_data in sorted(files_data.items()):
-                          coverage_pct = file_data.get("summary", {}).get("percent_covered", 0)
-                          missing_lines = file_data.get("missing_lines", [])
-                          missing_str = ", ".join(map(str, missing_lines[:5]))  # Show first 5 missing lines
-                          if len(missing_lines) > 5:
-                              missing_str += f", ... +{len(missing_lines) - 5} more"
-
-                          # Shorten file path for readability
-                          short_path = file_path.replace("train/", "").replace("rotation/", "").replace("src/", "")
-                          f.write(f"| `{short_path}` | {coverage_pct:.1f}% | {missing_str or 'None'} |\n")
+                          pct = file_data.get("summary", {}).get("percent_covered", 0)
+                          missing = file_data.get("missing_lines", [])
+                          miss_str = ", ".join(map(str, missing[:5])) or "None"
+                          if len(missing) > 5:
+                              miss_str += f", ... +{len(missing)-5} more"
+                          short = file_path.replace("train/", "").replace("rotation/", "").replace("src/", "")
+                          f.write(f"| `{short}` | {pct:.1f}% | {miss_str} |\n")
               else:
-                  # Fallback: parse from terminal output
-                  lines = pytest_output.split('\n')
+                  # Fallback: try to parse from stdout
+                  lines = pytest_output.splitlines()
                   for line in lines:
                       if "TOTAL" in line and "%" in line:
-                          # Extract percentage from TOTAL line
                           parts = line.split()
                           for part in parts:
                               if part.endswith('%'):
-                                  coverage_pct = float(part.rstrip('%'))
-                                  f.write(f"**Coverage:** {coverage_pct:.1f}%\n\n")
-                                  if coverage_pct >= 85:
-                                      f.write("✅ Coverage check passed (≥ 85%)\n\n")
-                                  else:
-                                      f.write("❌ Coverage check failed (< 85%)\n\n")
+                                  pct = float(part.rstrip('%'))
+                                  f.write(f"**Coverage:** {pct:.1f}%\n\n")
+                                  f.write(("✅" if pct >= 85 else "❌") + (" Coverage check passed (≥ 85%)\n\n" if pct >= 85 else " Coverage check failed (< 85%)\n\n"))
                                   break
                           break
           EOF
 
       - name: Comment PR with results
-        if: github.event_name == 'pull_request' && matrix.python-version == '3.12'
+        if: always() && github.event_name == 'pull_request' && matrix.python-version == '3.12'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -250,25 +238,22 @@ jobs:
 
             let commentBody = '## 🔍 Code Quality Report\n\n';
 
-            // Add pylint results
             try {
               const pylintSummary = fs.readFileSync('pylint_summary.txt', 'utf8');
               commentBody += '### Pylint Analysis\n' + pylintSummary + '\n';
-            } catch (error) {
+            } catch {
               commentBody += '### Pylint Analysis\n❓ Pylint summary not available\n\n';
             }
 
-            // Add coverage results
             try {
               const coverageSummary = fs.readFileSync('coverage_summary.txt', 'utf8');
               commentBody += '### Test Coverage\n' + coverageSummary + '\n';
-            } catch (error) {
+            } catch {
               commentBody += '### Test Coverage\n❓ Coverage summary not available\n\n';
             }
 
             commentBody += '---\n*Report generated for Python ' + '${{ matrix.python-version }}' + '*';
 
-            // Find existing comment to update or create new one
             const comments = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,

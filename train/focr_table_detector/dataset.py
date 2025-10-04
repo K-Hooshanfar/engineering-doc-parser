@@ -1,3 +1,19 @@
+"""Dataset utilities for the FOCR table detector.
+
+Builds YOLO-style splits (train/valid/test) by copying images and their
+matching label files into:
+
+    <dest_base>/
+      train/{images,labels}
+      valid/{images,labels}
+      test/{images,labels}
+
+Exposes:
+- SplitConfig: split ratios (train/val/test) with normalization.
+- prepare_dataset: orchestrates listing, splitting, and materializing the dataset.
+- list_images, split_indices, materialize_split, copy_pair: lower-level helpers.
+"""
+
 from __future__ import annotations
 
 import random
