@@ -122,15 +122,11 @@ jobs:
           [ -z "$args" ] && args="."
           mypy $args
 
-      - name: Bandit (security lint)
+      - name: Bandit (security scan)
         run: |
-          paths=""
-          [ -d train ] && paths="$paths train"
-          [ -d rotation ] && paths="$paths rotation"
-          [ -d Inference ] && paths="$paths Inference"
-          [ -f pipeline.py ] && paths="$paths pipeline.py"
-          # show all (-lll) but only fail on medium/high (-s)
-          bandit -q -r ${paths:-.} -lll -s medium,high
+          path="src"
+          [ -d "$path" ] || path="."
+          bandit -q -r "$path"
 
       - name: Pytest (coverage ≥ 85%)
         run: |
