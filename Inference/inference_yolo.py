@@ -27,9 +27,9 @@ from dataclasses import dataclass
 from typing import Literal, Optional, Sequence, Tuple, TypeAlias, cast
 
 import cv2  # type: ignore[attr-defined]
-import fitz
+import fitz  # type: ignore[import-not-found]
 import numpy as np
-from PIL import Image
+from PIL import Image # type: ignore[import-not-found]
 from tqdm import tqdm
 from ultralytics import YOLO
 
