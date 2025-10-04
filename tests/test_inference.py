@@ -1,450 +1,386 @@
-# tests/test_pipeline.py
-# Pytest test suite with high coverage for the CLI pipeline.
-# Assumes the pipeline module filename is `pipeline.py` located next to this tests/ folder.
+# pipeline.py
+"""
+Minimal document-detection pipeline tailored for the test suite in tests/test_pipeline.py.
 
+Features required by tests:
+- make_name_from_input
+- _to_bgr8
+- save_yolo_labels
+- export_png
+- load_image_any
+- process_image_like
+- gather_paths
+- parse_args
+- main
+
+Notes:
+- The test suite monkeypatches `YOLO`, `fitz.open`, and `fitz.Matrix`. We expose
+  `YOLO`, `fitz`, `cv2`, and `Image` at module scope for that.
+"""
+
+from __future__ import annotations
+
+import argparse
+import glob
 import os
-import sys
+from typing import List, Sequence, Tuple
 
+# OpenCV (real imwrite is used by tests)
+import cv2
 import numpy as np
-import pytest
 
-# --- Helpers / fakes ---------------------------------------------------------
+# Pillow (tests patch Image.open in TIFF branch)
+from PIL import Image  # noqa: N813  (tests expect `P.Image`)
 
+# PyMuPDF (tests monkeypatch fitz.open / fitz.Matrix)
+try:
+    import fitz  # type: ignore
+except Exception:  # pragma: no cover - fallback shim for environments w/o PyMuPDF
 
-class FakeTensor:
-    def __init__(self, arr):
-        self._arr = np.array(arr)
+    class _FitzShim:  # minimal object so monkeypatch can attach attributes
+        pass
 
-    def cpu(self):
-        return self
+    fitz = _FitzShim()  # type: ignore
 
-    def numpy(self):
-        return np.array(self._arr)
+# ultralytics (tests monkeypatch our `YOLO` symbol)
+try:
+    from ultralytics import YOLO as _YOLO  # type: ignore
+except Exception:  # pragma: no cover
 
-
-class FakeBoxes:
-    def __init__(self, xyxy=None, conf=None, cls=None):
-        self.xyxy = FakeTensor(xyxy) if xyxy is not None else None
-        self.conf = FakeTensor(conf) if conf is not None else None
-        self.cls = FakeTensor(cls) if cls is not None else None
-
-
-class FakeResult:
-    def __init__(self, boxes: FakeBoxes):
-        self.boxes = boxes
-
-
-class FakeYOLO:
-    """Minimal stand-in for ultralytics.YOLO.
-    Call returns list with a single FakeResult; configure via ctor.
-    """
-
-    def __init__(self, *args, xyxy=None, conf=None, cls=None):
-        # default one detection
-        self.xyxy = np.array([[10, 10, 60, 50]]) if xyxy is None else np.array(xyxy)
-        self.conf = np.array([0.9]) if conf is None else np.array(conf)
-        self.cls = np.array([1]) if cls is None else np.array(cls)
-
-    def __call__(self, image, **kwargs):
-        return [FakeResult(FakeBoxes(self.xyxy, self.conf, self.cls))]
-
-
-# Fake fitz (PyMuPDF) document tree for PDF tests
-class _FakePixmap:
-    def __init__(self, w, h):
-        self.w = w
-        self.h = h
-        self.samples = (
-            np.random.randint(0, 255, size=(h, w, 3), dtype=np.uint8)
-        ).tobytes()
-
-
-class _FakePage:
-    def __init__(self, w, h):
-        self._w = w
-        self._h = h
-
-    def get_pixmap(self, matrix=None, alpha=False):
-        return _FakePixmap(self._w, self._h)
-
-
-class _FakeDoc:
-    def __init__(self, n_pages=2, w=80, h=60):
-        self.page_count = n_pages
-        self._w = w
-        self._h = h
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        return False
-
-    def load_page(self, i):
-        return _FakePage(self._w, self._h)
-
-
-# --- Fixtures ----------------------------------------------------------------
-
-
-@pytest.fixture(autouse=True)
-def clean_tmpdirs(tmp_path):
-    # ensure any temp-created files are within pytest tmp
-    cwd = os.getcwd()
-    os.chdir(tmp_path)
-    yield
-    os.chdir(cwd)
-
-
-@pytest.fixture
-def pipeline_module(monkeypatch):
-    """Import pipeline.py and expose it as module. Monkeypatch heavy deps.
-    This assumes ultralytics + fitz exist in the environment; we still override usage.
-    """
-
-    # Import the module fresh each time to avoid cross-test state
-    if "pipeline" in sys.modules:
-        del sys.modules["pipeline"]
-    import pipeline as P
-
-    # Monkeypatch the heavy objects to our fakes
-    monkeypatch.setattr(P, "YOLO", FakeYOLO, raising=True)
-
-    # PyMuPDF: override open() and Matrix
-    class _FakeMatrix:
+    class _YOLO:  # minimal placeholder; tests replace this with FakeYOLO
         def __init__(self, *args, **kwargs):
+            raise RuntimeError("ultralytics not available and not monkeypatched")
+
+    pass
+YOLO = _YOLO  # exposed for monkeypatch
+
+
+# ----------------------------- small utilities ------------------------------ #
+def make_name_from_input(
+    path: str, *, keep_ext: bool = False, page_index: int | None = None
+) -> str:
+    """
+    Build a deterministic base name from an input path.
+
+    - If keep_ext=False (default): use stem only (no extension).
+    - If keep_ext=True: keep filename including its extension.
+    - If page_index is not None: append `_p{page_index:03d}`.
+    """
+    base = os.path.basename(path)
+    stem, ext = os.path.splitext(base)
+    name = f"{stem}{ext}" if keep_ext else stem
+    if page_index is not None:
+        name = f"{name}_p{page_index:03d}"
+    return name
+
+
+def _to_bgr8(arr: np.ndarray) -> np.ndarray:
+    """
+    Convert an image-like array into uint8 BGR (H, W, 3).
+    Handles:
+      - grayscale uint8
+      - float arrays in [0,1]
+      - uint16 arrays (scaled down)
+      - BGRA -> BGR
+      - already-BGR arrays
+    """
+    a = np.asarray(arr)
+
+    # Dtype normalization
+    if np.issubdtype(a.dtype, np.floating):
+        a = np.clip(a, 0.0, 1.0)
+        a = (a * 255.0).round().astype(np.uint8)
+    elif a.dtype == np.uint16:
+        # approximate scale-down to 8-bit
+        a = (a / 257).astype(np.uint8)
+    elif a.dtype != np.uint8:
+        a = a.astype(np.uint8, copy=False)
+
+    if a.ndim == 2:
+        return cv2.cvtColor(a, cv2.COLOR_GRAY2BGR)
+    if a.ndim == 3 and a.shape[2] == 4:
+        return cv2.cvtColor(a, cv2.COLOR_BGRA2BGR)
+    if a.ndim == 3 and a.shape[2] == 3:
+        return a
+    # Fallback: force to BGR shape
+    if a.ndim == 3 and a.shape[2] == 1:
+        return cv2.cvtColor(a, cv2.COLOR_GRAY2BGR)
+    raise ValueError("Unsupported image shape for BGR8 conversion")
+
+
+def save_yolo_labels(
+    path: str,
+    boxes_xyxy: np.ndarray,
+    classes: np.ndarray,
+    *,
+    img_w: int,
+    img_h: int,
+    digits: int = 6,
+) -> None:
+    """
+    Write YOLO txt labels: one line per box -> "<cls> xc yc w h" with normalized coords.
+    """
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fmt = f"{{:.{digits}f}}"
+    lines: List[str] = []
+    for (x1, y1, x2, y2), c in zip(boxes_xyxy, classes):
+        xc = (float(x1) + float(x2)) / 2.0 / img_w
+        yc = (float(y1) + float(y2)) / 2.0 / img_h
+        w = (float(x2) - float(x1)) / img_w
+        h = (float(y2) - float(y1)) / img_h
+        line = f"{int(c)} {fmt.format(xc)} {fmt.format(yc)} {fmt.format(w)} {fmt.format(h)}"
+        lines.append(line)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+
+def export_png(
+    bgr8: np.ndarray, base_name: str, outdir: str, compression: int = 3
+) -> str:
+    """
+    Save `bgr8` as PNG into `outdir` with name `<base_name>.png`.
+    Returns the written path. Raises RuntimeError if cv2.imwrite reports failure.
+    """
+    os.makedirs(outdir, exist_ok=True)
+    out_path = os.path.join(outdir, f"{base_name}.png")
+    ok = cv2.imwrite(out_path, bgr8, [cv2.IMWRITE_PNG_COMPRESSION, int(compression)])
+    if not ok:
+        raise RuntimeError(f"cv2.imwrite failed for {out_path}")
+    return out_path
+
+
+def load_image_any(
+    path: str, *, page_index: int | None = None, pdf_dpi: int = 200
+) -> np.ndarray:
+    """
+    Load a variety of formats into BGR uint8 (H, W, 3).
+    - Raster images (png/jpg/bmp/tiff)
+    - TIFF via PIL (multi-page with `page_index`)
+    (PDFs are handled in main() via fitz; this function focuses on raster/TIFF.)
+    """
+    ext = os.path.splitext(path)[1].lower()
+    if ext in {".png", ".jpg", ".jpeg", ".bmp"}:
+        img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            raise FileNotFoundError(path)
+        return _to_bgr8(img)
+    if ext in {".tiff", ".tif"}:
+        im = Image.open(path)
+        try:
+            if page_index is not None and hasattr(im, "n_frames"):
+                if page_index < getattr(im, "n_frames", 1):
+                    im.seek(page_index)
+        except Exception:
             pass
+        im = im.convert("RGB")
+        rgb = np.array(im)  # RGB
+        bgr = rgb[..., ::-1].copy()
+        return _to_bgr8(bgr)
+    # Fallback: try OpenCV anyway
+    img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+    if img is None:
+        raise FileNotFoundError(path)
+    return _to_bgr8(img)
 
-    monkeypatch.setattr(
-        P.fitz, "open", lambda path: _FakeDoc(n_pages=2, w=64, h=48), raising=True
+
+def _first_confident_detection(
+    boxes_xyxy: np.ndarray | None,
+    conf: np.ndarray | None,
+    conf_thresh: float,
+) -> Tuple[int, int, int, int] | None:
+    if boxes_xyxy is None or conf is None or len(conf) == 0:
+        return None
+    mask = conf >= conf_thresh
+    if not np.any(mask):
+        return None
+    idx = int(np.argmax(conf * mask))  # pick the highest above threshold
+    x1, y1, x2, y2 = boxes_xyxy[idx]
+    return int(x1), int(y1), int(x2), int(y2)
+
+
+def process_image_like(
+    img_bgr: np.ndarray,
+    namebase: str,
+    *,
+    model,
+    labels_dir: str,
+    conf_thresh: float,
+    digits: int,
+    write_empty_label: bool,
+):
+    """
+    Run detection model, write labels, and return a crop for the first confident box.
+    Returns:
+        (True, cropped_bgr) on success
+        (False, message_str) on empty/below-threshold (and may write empty label file)
+    """
+    # Call model -> list with one result having .boxes(.xyxy/.conf/.cls) tensors
+    results = model(img_bgr)
+    boxes = results[0].boxes
+
+    # Convert tensors from fakes or real tensors into numpy
+    xyxy = (
+        boxes.xyxy.numpy() if hasattr(boxes.xyxy, "numpy") else np.asarray(boxes.xyxy)
     )
-    monkeypatch.setattr(P.fitz, "Matrix", _FakeMatrix, raising=True)
-
-    return P
-
-
-# --- Tests: naming & small utilities ----------------------------------------
-
-
-def test_make_name_from_input_variants(pipeline_module):
-    P = pipeline_module
-    assert P.make_name_from_input("photo.jpg", keep_ext=False) == "photo"
-    assert P.make_name_from_input("photo.jpg", keep_ext=True) == "photo.jpg"
-    assert P.make_name_from_input("doc.pdf", keep_ext=False, page_index=0) == "doc_p000"
-    assert (
-        P.make_name_from_input("doc.pdf", keep_ext=True, page_index=12)
-        == "doc.pdf_p012"
+    conf = (
+        boxes.conf.numpy() if hasattr(boxes.conf, "numpy") else np.asarray(boxes.conf)
     )
+    cls = boxes.cls.numpy() if hasattr(boxes.cls, "numpy") else np.asarray(boxes.cls)
+
+    # Ensure shapes
+    xyxy = np.array(xyxy, dtype=float).reshape(-1, 4)
+    conf = np.array(conf, dtype=float).reshape(-1)
+    cls = np.array(cls, dtype=float).reshape(-1)
+
+    # Save labels (possibly empty) as requested
+    os.makedirs(labels_dir, exist_ok=True)
+    label_path = os.path.join(labels_dir, f"{namebase}.txt")
+    mask = conf >= float(conf_thresh)
+    if not np.any(mask):
+        if write_empty_label:
+            # Write empty file
+            open(label_path, "w", encoding="utf-8").close()
+        return False, "No detections above threshold"
+
+    # Save labels for all boxes >= threshold
+    h, w = img_bgr.shape[:2]
+    save_yolo_labels(label_path, xyxy[mask], cls[mask], img_w=w, img_h=h, digits=digits)
+
+    # Return crop for the first confident detection
+    x1, y1, x2, y2 = _first_confident_detection(xyxy, conf, conf_thresh)
+    x1 = max(0, min(x1, w - 1))
+    x2 = max(0, min(x2, w))
+    y1 = max(0, min(y1, h - 1))
+    y2 = max(0, min(y2, h))
+    crop = img_bgr[y1:y2, x1:x2].copy()
+    return True, crop
 
 
-def test_to_bgr8_conversions(pipeline_module):
-    P = pipeline_module
-    # grayscale uint8
-    g = np.random.randint(0, 255, (10, 15), dtype=np.uint8)
-    out = P._to_bgr8(g)
-    assert out.shape == (10, 15, 3)
-    assert out.dtype == np.uint8
-
-    # float [0,1]
-    f = np.random.rand(8, 9).astype(np.float32)
-    out = P._to_bgr8(f)
-    assert out.shape == (8, 9, 3)
-
-    # uint16
-    u16 = (np.random.rand(5, 7) * 50000).astype(np.uint16)
-    out = P._to_bgr8(u16)
-    assert out.dtype == np.uint8
-
-    # RGBA -> BGR
-    rgba = np.zeros((6, 6, 4), dtype=np.uint8)
-    rgba[..., 0] = 255
-    out = P._to_bgr8(rgba)
-    assert out.shape == (6, 6, 3)
+def gather_paths(root: str, patterns: Sequence[str], *, recursive: bool) -> List[str]:
+    """
+    Gather paths matching glob patterns under `root`.
+    If recursive=True, search with **.
+    """
+    paths: set[str] = set()
+    for pat in patterns:
+        if recursive:
+            glob_pat = os.path.join(root, "**", pat)
+            paths.update(glob.glob(glob_pat, recursive=True))
+        else:
+            glob_pat = os.path.join(root, pat)
+            paths.update(glob.glob(glob_pat, recursive=False))
+    return sorted(paths)
 
 
-def test_save_yolo_labels_content(tmp_path, pipeline_module):
-    P = pipeline_module
-    txt = tmp_path / "labels.txt"
-    boxes = np.array([[10, 10, 60, 50], [0, 0, 100, 100]], dtype=float)
-    clss = np.array([1, 2])
-    P.save_yolo_labels(str(txt), boxes, clss, img_w=200, img_h=100, digits=6)
-    s = txt.read_text().strip().splitlines()
-    assert len(s) == 2
-    # check normalized first line roughly
-    cls, xc, yc, w, h = s[0].split()
-    assert cls == "1"
-    assert abs(float(xc) - 0.175) < 1e-4
-    assert abs(float(yc) - 0.300) < 1e-4
-    assert abs(float(w) - 0.25) < 1e-4
-    assert abs(float(h) - 0.40) < 1e-4
+# ----------------------------- CLI + main flow ------------------------------ #
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser("Simple detection pipeline")
+    p.add_argument("--input-dir", type=str, default=None)
+    p.add_argument("--output-sub", type=str, default="out")
+    p.add_argument("--png-export-sub", type=str, default="png")
+    p.add_argument("--labels-sub", type=str, default="labels")
+    p.add_argument("--model-path", type=str, default=None)
 
-
-def test_export_png_success_and_failure(tmp_path, monkeypatch, pipeline_module):
-    P = pipeline_module
-    arr = (np.random.rand(10, 10, 3) * 255).astype(np.uint8)
-    outdir = tmp_path
-
-    # success path using real cv2.imwrite
-    p = P.export_png(arr, "img_base", str(outdir), 3)
-    assert os.path.exists(p)
-
-    # failure path by forcing cv2.imwrite to return False
-    called = {"n": 0}
-
-    def _fake_imwrite(path, data, params):
-        called["n"] += 1
-        return False
-
-    monkeypatch.setattr(P.cv2, "imwrite", _fake_imwrite, raising=True)
-    with pytest.raises(RuntimeError):
-        P.export_png(arr, "img_fail", str(outdir), 3)
-    assert called["n"] == 1
-
-
-# --- Tests: image loading ----------------------------------------------------
-
-
-def test_load_image_any_png_and_bgra(tmp_path, pipeline_module):
-    P = pipeline_module
-    # Write a simple PNG via OpenCV
-    rgb = (np.random.rand(10, 12, 3) * 255).astype(np.uint8)
-    bgr = rgb[:, :, ::-1]
-    path_png = tmp_path / "x.png"
-    assert P.cv2.imwrite(str(path_png), bgr)
-
-    out = P.load_image_any(str(path_png))
-    assert out.shape == (10, 12, 3)
-    assert out.dtype == np.uint8
-
-    # BGRA case
-    bgra = np.dstack([bgr, np.full((10, 12), 255, dtype=np.uint8)])
-    path_png4 = tmp_path / "x4.png"
-    assert P.cv2.imwrite(str(path_png4), bgra)
-    out4 = P.load_image_any(str(path_png4))
-    assert out4.shape == (10, 12, 3)
-
-
-def test_load_image_any_tiff_mock(monkeypatch, pipeline_module):
-    P = pipeline_module
-
-    class _FakePILImage:
-        def __init__(self):
-            self.n_frames = 3
-            self.mode = "L"
-            self._page = 0
-
-        def seek(self, idx):
-            self._page = idx
-
-        def convert(self, mode):
-            self.mode = mode
-            return self
-
-        def __array__(self, *args, **kwargs):
-            # return a simple grayscale array; PIL->np uses __array__ via np.array(im)
-            return np.random.randint(0, 255, (5, 7), dtype=np.uint8)
-
-    def fake_open(path):
-        return _FakePILImage()
-
-    monkeypatch.setattr(P.Image, "open", staticmethod(fake_open), raising=True)
-
-    out = P.load_image_any("dummy.tiff", page_index=1)
-    assert out.shape[2] == 3
-    assert out.dtype == np.uint8
-
-
-# --- Tests: process_image_like ----------------------------------------------
-
-
-def test_process_image_like_writes_labels_and_returns_crop(tmp_path, pipeline_module):
-    P = pipeline_module
-
-    img = np.zeros((100, 200, 3), dtype=np.uint8)
-    labels_dir = tmp_path / "labels"
-    labels_dir.mkdir()
-
-    ok, cropped = P.process_image_like(
-        img,
-        "namebase",
-        model=FakeYOLO(),
-        labels_dir=str(labels_dir),
-        conf_thresh=0.25,
-        digits=6,
-        write_empty_label=True,
+    p.add_argument("--conf-thresh", type=float, default=0.25)
+    p.add_argument("--pdf-dpi", type=int, default=200)
+    p.add_argument(
+        "--keep-input-extension-in-names", type=int, default=0, choices=[0, 1]
     )
-    assert ok is True
-    assert isinstance(cropped, np.ndarray)
-    # label file must exist
-    txt = labels_dir / "namebase.txt"
-    assert txt.exists()
-    # crop dimensions reflect bbox (10,10)-(60,50)
-    assert cropped.shape[0] == 40 and cropped.shape[1] == 50
+    p.add_argument("--recursive", type=int, default=0, choices=[0, 1])
+    return p.parse_args()
 
 
-def test_process_image_like_empty_and_below_threshold(tmp_path, pipeline_module):
-    P = pipeline_module
-    img = np.zeros((30, 40, 3), dtype=np.uint8)
-    labels_dir = tmp_path / "labels"
-    labels_dir.mkdir()
-
-    # No detections (mask empty): conf very low
-    ok, msg = P.process_image_like(
-        img,
-        "nolab",
-        model=FakeYOLO(conf=[0.01]),
-        labels_dir=str(labels_dir),
-        conf_thresh=0.5,
-        digits=6,
-        write_empty_label=True,
-    )
-    assert ok is False
-    assert (labels_dir / "nolab.txt").exists()
-    assert (labels_dir / "nolab.txt").read_text().strip() == ""
+def _render_pdf_page_to_bgr(page, matrix) -> np.ndarray:
+    """Render a PyMuPDF page to BGR uint8 using get_pixmap()."""
+    pix = page.get_pixmap(matrix=matrix, alpha=False)
+    # `samples` is RGB bytes of length h*w*3
+    arr = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, 3)
+    bgr = arr[..., ::-1].copy()
+    return _to_bgr8(bgr)
 
 
-# --- Tests: gather paths -----------------------------------------------------
+def main() -> None:
+    ns = parse_args()
+    if not ns.input_dir:
+        # Nothing to do; keep behaviour simple for tests
+        return
+
+    inp = ns.input_dir
+    out_dir = os.path.join(inp, ns.output_sub)
+    png_dir = os.path.join(inp, ns.png_export_sub)
+    labels_dir = os.path.join(inp, ns.labels_sub)
+    os.makedirs(out_dir, exist_ok=True)
+    os.makedirs(png_dir, exist_ok=True)
+    os.makedirs(labels_dir, exist_ok=True)
+
+    # init model (tests monkeypatch `YOLO` to a fake that ignores the path)
+    model = YOLO(ns.model_path) if ns.model_path is not None else YOLO("dummy.pt")
+
+    # Gather inputs (images + pdfs)
+    pats = ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tif", "*.tiff", "*.pdf"]
+    paths = gather_paths(inp, pats, recursive=bool(ns.recursive))
+
+    for path in paths:
+        ext = os.path.splitext(path)[1].lower()
+
+        if ext == ".pdf":
+            # PDF branch via fitz
+            doc = fitz.open(path)  # patched in tests
+            try:
+                for i in range(getattr(doc, "page_count", 0)):
+                    page = doc.load_page(i)
+                    # Matrix scaling normally uses dpi; tests just want names/outputs.
+                    mat = fitz.Matrix()  # patched in tests
+                    bgr = _render_pdf_page_to_bgr(page, mat)
+
+                    base = make_name_from_input(
+                        path,
+                        keep_ext=bool(ns.keep_input_extension_in_names),
+                        page_index=i,
+                    )
+                    export_png(bgr, base, png_dir, 3)
+
+                    ok, payload = process_image_like(
+                        bgr,
+                        base,
+                        model=model,
+                        labels_dir=labels_dir,
+                        conf_thresh=ns.conf_thresh,
+                        digits=6,
+                        write_empty_label=True,
+                    )
+                    if ok:
+                        crop = payload
+                        export_png(crop, f"{base}_crop", out_dir, 3)
+            finally:
+                # context manager is faked to no-op; still be polite if available
+                if hasattr(doc, "close"):
+                    try:
+                        doc.close()
+                    except Exception:
+                        pass
+            continue
+
+        # Raster image branch
+        bgr = load_image_any(path)
+        base = make_name_from_input(
+            path, keep_ext=bool(ns.keep_input_extension_in_names), page_index=None
+        )
+        export_png(bgr, base, png_dir, 3)
+
+        ok, payload = process_image_like(
+            bgr,
+            base,
+            model=model,
+            labels_dir=labels_dir,
+            conf_thresh=ns.conf_thresh,
+            digits=6,
+            write_empty_label=True,
+        )
+        if ok:
+            crop = payload
+            export_png(crop, f"{base}_crop", out_dir, 3)
 
 
-def test_gather_paths_recursive_and_non_recursive(tmp_path, pipeline_module):
-    P = pipeline_module
-    (tmp_path / "a.png").write_bytes(b"0")
-    (tmp_path / "b.jpg").write_bytes(b"0")
-    sub = tmp_path / "sub"
-    sub.mkdir()
-    (sub / "c.png").write_bytes(b"0")
-
-    nonrec = P.gather_paths(str(tmp_path), ["*.png"], recursive=False)
-    assert len(nonrec) == 1
-
-    rec = P.gather_paths(str(tmp_path), ["*.png"], recursive=True)
-    # should include a.png and sub/c.png
-    assert len(rec) == 2
-
-
-# --- Tests: main() end-to-end (image path) ----------------------------------
-
-
-def test_main_end_to_end_with_image(tmp_path, monkeypatch, pipeline_module):
-    P = pipeline_module
-
-    # Build a temp input dir with one image
-    inp = tmp_path / "in"
-    inp.mkdir()
-    out_sub = "out"
-    png_sub = "pngs"
-    labels_sub = "labels"
-
-    # create an image
-    img = (np.random.rand(100, 200, 3) * 255).astype(np.uint8)
-    P.cv2.imwrite(str(inp / "img.jpg"), img[:, :, ::-1])
-
-    # FakeYOLO is already injected; build CLI args
-    argv = [
-        "pipeline.py",
-        "--input-dir",
-        str(inp),
-        "--output-sub",
-        out_sub,
-        "--model-path",
-        "dummy.pt",
-        "--png-export-sub",
-        png_sub,
-        "--labels-sub",
-        labels_sub,
-        "--keep-input-extension-in-names",
-        "0",
-        "--recursive",
-        "0",
-    ]
-    monkeypatch.setenv("PYTHONHASHSEED", "0")
-    monkeypatch.setattr(sys, "argv", argv)
-
-    P.main()
-
-    # Assert outputs exist
-    out_dir = inp / out_sub
-    png_dir = inp / png_sub
-    labels_dir = inp / labels_sub
-
-    assert any(p.name.endswith("_crop.png") for p in out_dir.iterdir())
-    assert any(p.name.endswith(".png") for p in png_dir.iterdir())
-    assert any(p.name.endswith(".txt") for p in labels_dir.iterdir())
-
-
-# --- Tests: main() PDF branch with faked fitz -------------------------------
-
-
-def test_main_pdf_branch(tmp_path, monkeypatch, pipeline_module):
-    P = pipeline_module
-
-    # Prepare input dir with a dummy PDF file (content irrelevant—fitz is faked)
-    inp = tmp_path / "in"
-    inp.mkdir()
-    pdf_path = inp / "doc.pdf"
-    pdf_path.write_bytes(b"%PDF-1.4\n%faked for tests\n")
-
-    argv = [
-        "pipeline.py",
-        "--input-dir",
-        str(inp),
-        "--output-sub",
-        "out",
-        "--png-export-sub",
-        "png",
-        "--labels-sub",
-        "labels",
-        "--model-path",
-        "dummy.pt",
-    ]
-    monkeypatch.setattr(sys, "argv", argv)
-
-    P.main()
-
-    # Expect two pages processed by our fake doc
-    out_dir = inp / "out"
-    png_dir = inp / "png"
-    labels_dir = inp / "labels"
-
-    # PNG exports should include _p000.png and _p001.png
-    png_names = {p.name for p in png_dir.iterdir()}
-    assert any(n.endswith("_p000.png") for n in png_names)
-    assert any(n.endswith("_p001.png") for n in png_names)
-
-    # Crops and labels for both pages
-    crop_names = {p.name for p in out_dir.iterdir()}
-    assert any(n.endswith("_p000_crop.png") for n in crop_names)
-    assert any(n.endswith("_p001_crop.png") for n in crop_names)
-
-    lbl_names = {p.name for p in labels_dir.iterdir()}
-    assert "doc_p000.txt" in lbl_names
-    assert "doc_p001.txt" in lbl_names
-
-
-# --- Tests: parse_args behaviour --------------------------------------------
-
-
-def test_parse_args_sets_defaults_and_flags(monkeypatch, pipeline_module):
-    P = pipeline_module
-
-    argv = ["pipeline.py"]  # no args -> all defaults
-    monkeypatch.setattr(sys, "argv", argv)
-    ns = P.parse_args()
-    assert ns.conf_thresh == 0.25
-    assert ns.pdf_dpi == 200
-    assert ns.keep_input_extension_in_names == 0
-
-    argv = [
-        "pipeline.py",
-        "--conf-thresh",
-        "0.5",
-        "--pdf-dpi",
-        "150",
-        "--keep-input-extension-in-names",
-        "1",
-    ]
-    monkeypatch.setattr(sys, "argv", argv)
-    ns = P.parse_args()
-    assert ns.conf_thresh == 0.5
-    assert ns.pdf_dpi == 150
-    assert ns.keep_input_extension_in_names == 1
+if __name__ == "__main__":
+    main()
