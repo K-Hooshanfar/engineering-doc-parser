@@ -20,12 +20,11 @@ from __future__ import annotations
 # Pylint/OpenCV: cv2 is a C-extension with dynamic members.
 # This prevents false-positive E1101 for cv2.* symbols only.
 # pylint: disable=no-member
-
 import argparse
 import glob
 import os
 from dataclasses import dataclass
-from typing import Optional, Sequence, Tuple, Literal, TypeAlias, cast
+from typing import Literal, Optional, Sequence, Tuple, TypeAlias, cast
 
 import cv2  # type: ignore[attr-defined]
 import fitz
@@ -33,7 +32,6 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 from ultralytics import YOLO
-
 
 # =========================
 # Argument parsing
@@ -218,7 +216,9 @@ def load_image_any(path: str, page_index: int = 0) -> np.ndarray:
         if im.mode not in ("RGB", "RGBA", "L"):
             try:
                 im = im.convert("RGB")
-            except Exception:  # noqa: BLE001 (broad except acceptable for PIL mode conversion)
+            except (
+                Exception
+            ):  # noqa: BLE001 (broad except acceptable for PIL mode conversion)
                 im = im.convert("L")
         arr = np.array(im)  # RGB/RGBA/L
         return _to_bgr8(arr)
@@ -420,7 +420,12 @@ def _process_image_like_refactored(
     if boxes_xyxy.shape[0] == 0:
         if cfg.write_empty_label:
             save_yolo_labels(
-                txt_out, np.empty((0, 4)), np.empty((0,)), width, height, digits=cfg.digits
+                txt_out,
+                np.empty((0, 4)),
+                np.empty((0,)),
+                width,
+                height,
+                digits=cfg.digits,
             )
         return False, "no detections >= thresh"
 

@@ -1,3 +1,13 @@
+"""Public package interface for the `rotation` toolkit.
+
+This module:
+- Re-exports selected functions from :mod:`rotation.rotation` so tests can
+  monkeypatch them at the *package* level (e.g., `rotation.detect_east_boxes`).
+- Re-exports third-party modules (`argparse`, `os`, `cv2`, `pytesseract`) under
+  the same names for test stubbing.
+- Exposes :class:`Config` for configuration defaults/convenience.
+"""
+
 # rotation/__init__.py
 
 # 1) All imports at the very top
