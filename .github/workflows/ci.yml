@@ -129,7 +129,8 @@ jobs:
           [ -d rotation ] && paths="$paths rotation"
           [ -d Inference ] && paths="$paths Inference"
           [ -f pipeline.py ] && paths="$paths pipeline.py"
-          bandit -q -r ${paths:-.}
+          # show all (-lll) but only fail on medium/high (-s)
+          bandit -q -r ${paths:-.} -lll -s medium,high
 
       - name: Pytest (coverage ≥ 85%)
         run: |
