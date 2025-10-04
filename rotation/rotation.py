@@ -25,7 +25,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Iterable, Iterator, List, Sequence, Tuple, Optional, Protocol
+from typing import Iterable, Iterator, List, Optional, Protocol, Sequence, Tuple
 
 import cv2
 import numpy as np

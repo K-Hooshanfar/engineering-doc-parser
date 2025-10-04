@@ -7,6 +7,7 @@ import os as _os
 import cv2 as _cv2
 import pytesseract as _pytesseract  # type: ignore[import-not-found,import-untyped]
 
+from .config import Config
 from .rotation import (
     build_parser,
     detect_east_boxes,
@@ -19,7 +20,6 @@ from .rotation import (
     save_image,
     setup_logging,
 )
-from .config import Config
 
 # 2) Re-export for tests to monkeypatch at package level
 argparse = _argparse
