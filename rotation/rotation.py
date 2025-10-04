@@ -25,7 +25,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Iterable, Iterator, List, Sequence, Tuple, Optional, Protocol
+from typing import Iterable, Iterator, List, Optional, Protocol, Sequence, Tuple
 
 import cv2
 import numpy as np
@@ -62,10 +62,29 @@ def _call_process_one_image(pkg, image_path, net, **kwargs):
 
 
 class DnnNet(Protocol):
-    """Protocol for OpenCV DNN network objects."""
+    """Subset of the OpenCV DNN Net API used by our pipeline."""
 
-    def setInput(self, blob: np.ndarray) -> None: ...
-    def forward(self, outputNames: List[str]) -> Tuple[np.ndarray, np.ndarray]: ...
+    # Allow OpenCV-style camelCase in this Protocol only.
+    # pylint: disable=invalid-name
+
+    def setInput(self, blob: np.ndarray) -> None:
+        """Set the input blob for the next forward pass.
+
+        Args:
+            blob: 4D array shaped (N, C, H, W) in BGR order as expected by
+                OpenCV's DNN module.
+        """
+
+    def forward(self, outputNames: List[str]) -> Tuple[np.ndarray, np.ndarray]:
+        """Run a forward pass and return the requested outputs.
+
+        Args:
+            outputNames: Names of the output layers to fetch, in order.
+
+        Returns:
+            Tuple of NumPy arrays corresponding to the requested outputs, in the
+            same order as `outputNames`.
+        """
 
 
 # ---------- Logging ----------

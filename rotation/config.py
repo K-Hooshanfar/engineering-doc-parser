@@ -5,7 +5,7 @@ including the default EAST text detector model path.
 """
 
 
-class Config:
+class Config:  # pylint: disable=too-few-public-methods
     """
     Configuration settings for the document orientation detector.
 
