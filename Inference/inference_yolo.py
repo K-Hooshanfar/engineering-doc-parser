@@ -29,9 +29,9 @@ from typing import Literal, Optional, Sequence, Tuple, TypeAlias, cast
 import cv2  # type: ignore[attr-defined]
 import fitz  # type: ignore[import-not-found]
 import numpy as np
-from PIL import Image  # type: ignore[import-not-found]
-from tqdm import tqdm
-from ultralytics import YOLO
+from PIL import Image as PILImage  # type: ignore[import-not-found]
+from tqdm import tqdm  # type: ignore[import-untyped]
+from ultralytics import YOLO  # type: ignore[import-untyped]
 
 # =========================
 # Argument parsing
@@ -209,27 +209,29 @@ def load_image_any(path: str, page_index: int = 0) -> np.ndarray:
     """
     ext = os.path.splitext(path)[1].lower()
     if ext in (".tif", ".tiff"):
-        im = Image.open(path)
-        if getattr(im, "n_frames", 1) > 1:
-            page_index = max(0, min(page_index, im.n_frames - 1))
+        # mypy: ensure the object is typed as PIL.Image.Image
+        im = cast(PILImage.Image, PILImage.open(path))
+        n_frames = int(getattr(im, "n_frames", 1))  # not all formats expose this
+        if n_frames > 1:
+            page_index = max(0, min(page_index, n_frames - 1))
             im.seek(page_index)
         if im.mode not in ("RGB", "RGBA", "L"):
             try:
                 im = im.convert("RGB")
-            except (
-                Exception
-            ):  # noqa: BLE001 (broad except acceptable for PIL mode conversion)
+            except Exception:
                 im = im.convert("L")
         arr = np.array(im)  # RGB/RGBA/L
         return _to_bgr8(arr)
 
+    # Non-TIFF: use OpenCV. Keep behavior consistent with the rest of the pipeline.
     arr2 = cv2.imread(path, cv2.IMREAD_UNCHANGED)
     if arr2 is None:
         raise FileNotFoundError(f"Could not load image from {path}")
     if arr2.ndim == 3 and arr2.shape[2] == 4:
         arr2 = cv2.cvtColor(arr2, cv2.COLOR_BGRA2BGR)
     if arr2.ndim == 3 and arr2.shape[2] == 3:
-        arr2 = arr2[:, :, ::-1]  # BGR->RGB for _to_bgr8 flip back
+        # OpenCV loads BGR; _to_bgr8 expects RGB/RGBA/L input, so flip to RGB first
+        arr2 = arr2[:, :, ::-1]
     return _to_bgr8(arr2)
 
 
