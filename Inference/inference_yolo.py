@@ -450,20 +450,38 @@ def _process_image_like_refactored(
 # =========================
 # Main runner
 # =========================
+def _ci_pattern(p: str) -> str:
+    """Return a case-insensitive glob pattern by expanding letters to [aA]."""
+    out = []
+    in_class = False  # don't rewrite inside [...] classes
+    for ch in p:
+        if ch == "[":
+            in_class = True
+            out.append(ch)
+        elif ch == "]":
+            in_class = False
+            out.append(ch)
+        elif not in_class and ch.isalpha():
+            out.append(f"[{ch.lower()}{ch.upper()}]")
+        else:
+            out.append(ch)
+    return "".join(out)
 
 
 def gather_paths(
     input_dir: str, extensions: Sequence[str], recursive: bool
 ) -> list[str]:
-    """Collect file paths from a directory according to patterns."""
+    """Collect file paths from a directory according to patterns (case-insensitive)."""
     paths: list[str] = []
-    if recursive:
-        for patt in extensions:
-            patt2 = patt if patt.startswith("**/") else os.path.join("**", patt)
-            paths.extend(glob.glob(os.path.join(input_dir, patt2), recursive=True))
-    else:
-        for ext in extensions:
-            paths.extend(glob.glob(os.path.join(input_dir, ext)))
+    for patt in extensions:
+        patt_ci = _ci_pattern(patt)
+        if recursive:
+            patt_ci = (
+                patt_ci if patt_ci.startswith("**/") else os.path.join("**", patt_ci)
+            )
+            paths.extend(glob.glob(os.path.join(input_dir, patt_ci), recursive=True))
+        else:
+            paths.extend(glob.glob(os.path.join(input_dir, patt_ci)))
     # de-dup while preserving order
     return sorted(list(dict.fromkeys(paths)))
 
