@@ -48,10 +48,11 @@ pip install opencv-python numpy pytesseract
     └── frozen_east_text_detection.pb # EAST model (.pb)
 ```
 
-Create the weights folder and place the **EAST** model there:
+Create the weights folder and download the **EAST** model:
 
 ```bash
 mkdir -p weights
+gdown --id 10FgAQ31uSy_sjGl828ct1oVXeVUvpYe9
 ```
 
 Then point `Config.EAST_TEXT_DETECTOR` at it (see below). 
