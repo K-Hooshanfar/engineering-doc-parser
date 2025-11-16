@@ -3,17 +3,16 @@
 YOLO-based rotation detection: tries all 4 rotations and picks the best one.
 Now with rotation_candidates_debug (metrics) + visual debug grid.
 """
-import io
-import os
 import argparse
+import io
 from pathlib import Path
-from typing import Optional, Tuple, Dict, List
+from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
-from ultralytics import YOLO
 from PIL import Image
 from tqdm.auto import tqdm
+from ultralytics import YOLO
 
 # --------------------
 # Config
@@ -90,7 +89,9 @@ def load_image_from_bytes(image_bytes: bytes, page_index: int = 0) -> np.ndarray
 
 
 def encode_png_bytes(image_bgr: np.ndarray, compression: int = 3) -> bytes:
-    ok, buf = cv2.imencode(".png", image_bgr, [cv2.IMWRITE_PNG_COMPRESSION, compression])
+    ok, buf = cv2.imencode(
+        ".png", image_bgr, [cv2.IMWRITE_PNG_COMPRESSION, compression]
+    )
     if not ok:
         raise RuntimeError("Failed to encode PNG.")
     return buf.tobytes()
@@ -99,7 +100,9 @@ def encode_png_bytes(image_bgr: np.ndarray, compression: int = 3) -> bytes:
 # --------------------
 # Debug viz helpers
 # --------------------
-def _draw_box_with_label(img: np.ndarray, box, label: str, color=(0, 255, 0)) -> np.ndarray:
+def _draw_box_with_label(
+    img: np.ndarray, box, label: str, color=(0, 255, 0)
+) -> np.ndarray:
     """Draw rectangle + text label on a copy of img."""
     x1, y1, x2, y2 = map(int, box)
     out = img.copy()
@@ -107,17 +110,29 @@ def _draw_box_with_label(img: np.ndarray, box, label: str, color=(0, 255, 0)) ->
     (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
     y0 = max(0, y1 - th - 6)
     cv2.rectangle(out, (x1, y0), (x1 + tw + 8, y0 + th + 6), (0, 0, 0), -1)
-    cv2.putText(out, label, (x1 + 4, y0 + th + 2),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(
+        out,
+        label,
+        (x1 + 4, y0 + th + 2),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.55,
+        (255, 255, 255),
+        2,
+        cv2.LINE_AA,
+    )
     return out
 
 
-def _make_grid(images: List[np.ndarray], cols: int = 2, pad: int = 6) -> Optional[np.ndarray]:
+def _make_grid(
+    images: List[np.ndarray], cols: int = 2, pad: int = 6
+) -> Optional[np.ndarray]:
     """Compose images into a grid; resizes each to the minimum height among them."""
     if not images:
         return None
     h = min(im.shape[0] for im in images)
-    resized = [cv2.resize(im, (int(im.shape[1] * (h / im.shape[0])), h)) for im in images]
+    resized = [
+        cv2.resize(im, (int(im.shape[1] * (h / im.shape[0])), h)) for im in images
+    ]
     pad_col = np.full((h, pad, 3), 30, np.uint8)
     pad_row = np.full((pad, 1, 3), 30, np.uint8)
     rows = []
@@ -209,7 +224,7 @@ def detect_with_model(
     mask = confs >= conf_thresh
     boxes = boxes[mask] if mask.any() else np.empty((0, 4))
     confs = confs[mask] if mask.any() else np.empty(0)
-    clss = (clss[mask] if (clss is not None and mask.any()) else clss)
+    clss = clss[mask] if (clss is not None and mask.any()) else clss
 
     if boxes.shape[0] == 0:
         return False, None, 0.0, 0, boxes, confs, clss
@@ -237,7 +252,9 @@ def _boxes_area_xyxy(boxes: np.ndarray) -> np.ndarray:
     return w * h
 
 
-def _union_coverage(boxes: np.ndarray, img_w: int, img_h: int, max_boxes: int = 1000) -> float:
+def _union_coverage(
+    boxes: np.ndarray, img_w: int, img_h: int, max_boxes: int = 1000
+) -> float:
     """Approximate union area by rasterization (fast for typical doc sizes)."""
     if boxes.shape[0] == 0:
         return 0.0
@@ -299,13 +316,13 @@ def find_best_rotation(
     model_path: str,
     conf_thresh: float,
     prefer_bottom: bool = True,
-    bottom_weight: float = 0.2,      # base weight for bottom bias
-    conf_weight: float = 3.0,        # LOWER: confidence less dominant
-    coverage_weight: float = 8.0,    # coverage still very important
-    largestk_weight: float = 3.0,    # LOWER: top-K confidence less dominant
-    frag_weight: float = 4.0,        # penalize fragmentation
+    bottom_weight: float = 0.2,  # base weight for bottom bias
+    conf_weight: float = 3.0,  # LOWER: confidence less dominant
+    coverage_weight: float = 8.0,  # coverage still very important
+    largestk_weight: float = 3.0,  # LOWER: top-K confidence less dominant
+    frag_weight: float = 4.0,  # penalize fragmentation
     k_largest: int = 3,
-    tie_margin: float = 0.5,         # prefer 0° if scores are very close
+    tie_margin: float = 0.5,  # prefer 0° if scores are very close
     verbose: bool = True,
     rotation_candidates_debug: Optional[List[Dict[str, float]]] = None,
     rotation_debug_images: Optional[List[np.ndarray]] = None,
@@ -337,6 +354,7 @@ def find_best_rotation(
             "center_y_norm": ...,
         }
     """
+
     def _log(msg: str):
         if verbose:
             tqdm.write(msg)
@@ -357,23 +375,33 @@ def find_best_rotation(
             _log(f"  {angle:3d}°: No detections")
 
             if rotation_candidates_debug is not None:
-                rotation_candidates_debug.append({
-                    "angle": float(angle),
-                    "score": float(-1e9),
-                    "coverage": 0.0,
-                    "topk_conf": 0.0,
-                    "avg_conf": 0.0,
-                    "frag": 0.0,
-                    "bottom": 0.0,
-                    "num_boxes": 0,
-                    "geom_score": 0.0,
-                    "aspect_main": 0.0,
-                    "center_y_norm": 0.0,
-                })
+                rotation_candidates_debug.append(
+                    {
+                        "angle": float(angle),
+                        "score": float(-1e9),
+                        "coverage": 0.0,
+                        "topk_conf": 0.0,
+                        "avg_conf": 0.0,
+                        "frag": 0.0,
+                        "bottom": 0.0,
+                        "num_boxes": 0,
+                        "geom_score": 0.0,
+                        "aspect_main": 0.0,
+                        "center_y_norm": 0.0,
+                    }
+                )
             if rotation_debug_images is not None:
                 ann = rotated.copy()
-                cv2.putText(ann, f"{angle}° | no detections", (10, 30),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2, cv2.LINE_AA)
+                cv2.putText(
+                    ann,
+                    f"{angle}° | no detections",
+                    (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.8,
+                    (0, 255, 255),
+                    2,
+                    cv2.LINE_AA,
+                )
                 rotation_debug_images.append(ann)
             continue
 
@@ -386,7 +414,7 @@ def find_best_rotation(
 
         areas = _boxes_area_xyxy(boxes)
         order = np.argsort(-areas)
-        topk = order[:min(k_largest, areas.size)]
+        topk = order[: min(k_largest, areas.size)]
 
         # -------- base components --------
         coverage = _union_coverage(boxes, rotated.shape[1], rotated.shape[0])  # 0..1
@@ -403,9 +431,9 @@ def find_best_rotation(
         bw = max(1.0, float(x2 - x1))
         bh = max(1.0, float(y2 - y1))
 
-        aspect_main = bw / bh                    # >1 = horizontal, <1 = vertical
+        aspect_main = bw / bh  # >1 = horizontal, <1 = vertical
         center_y = 0.5 * (y1 + y2)
-        center_y_norm = center_y / img_h_i       # 0 top, 1 bottom
+        center_y_norm = center_y / img_h_i  # 0 top, 1 bottom
 
         # Map aspect_main into roughly [-1, 1]:
         #   horizontal (>=4:1) -> ~+1
@@ -424,7 +452,7 @@ def find_best_rotation(
             + conf_component * conf_weight
             - frag * frag_weight
             + (bottom_score * bottom_weight if prefer_bottom else 0.0)
-            + 8.0 * geom_score   # strong geometry influence
+            + 8.0 * geom_score  # strong geometry influence
         )
 
         _log(
@@ -435,22 +463,26 @@ def find_best_rotation(
             f"aspect_main={aspect_main:.2f} => score={score:.2f}"
         )
 
-        results.append((angle, score, rotated, cropped, num_boxes, conf_component, geom_score))
+        results.append(
+            (angle, score, rotated, cropped, num_boxes, conf_component, geom_score)
+        )
 
         if rotation_candidates_debug is not None:
-            rotation_candidates_debug.append({
-                "angle": float(angle),
-                "score": float(score),
-                "coverage": float(coverage),
-                "topk_conf": float(largestk_conf),
-                "avg_conf": float(conf_component),
-                "frag": float(frag),
-                "bottom": float(bottom_score),
-                "num_boxes": int(num_boxes),
-                "geom_score": float(geom_score),
-                "aspect_main": float(aspect_main),
-                "center_y_norm": float(center_y_norm),
-            })
+            rotation_candidates_debug.append(
+                {
+                    "angle": float(angle),
+                    "score": float(score),
+                    "coverage": float(coverage),
+                    "topk_conf": float(largestk_conf),
+                    "avg_conf": float(conf_component),
+                    "frag": float(frag),
+                    "bottom": float(bottom_score),
+                    "num_boxes": int(num_boxes),
+                    "geom_score": float(geom_score),
+                    "aspect_main": float(aspect_main),
+                    "center_y_norm": float(center_y_norm),
+                }
+            )
 
         if rotation_debug_images is not None:
             label = (
@@ -462,18 +494,33 @@ def find_best_rotation(
 
     # Pick best; apply 0° hysteresis
     results.sort(key=lambda x: x[1], reverse=True)
-    best_angle, best_score, best_rotated, best_cropped, best_num, best_conf, best_geom = results[0]
+    (
+        best_angle,
+        best_score,
+        best_rotated,
+        best_cropped,
+        best_num,
+        best_conf,
+        best_geom,
+    ) = results[0]
 
     # If 0° is close in score, prefer it (same as before)
     zero = next((r for r in results if r[0] == 0), None)
     if zero is not None and (best_angle != 0) and (best_score - zero[1] < tie_margin):
-        best_angle, best_score, best_rotated, best_cropped = zero[0], zero[1], zero[2], zero[3]
+        best_angle, best_score, best_rotated, best_cropped = (
+            zero[0],
+            zero[1],
+            zero[2],
+            zero[3],
+        )
 
     if best_score < -1e8:
         _log("⚠️  No detections at any rotation, using 0°")
         best_angle, best_rotated, best_cropped = 0, image.copy(), None
     else:
-        _log(f"✅ Best rotation: {best_angle}° (score={best_score:.2f}, geom={best_geom:.2f})")
+        _log(
+            f"✅ Best rotation: {best_angle}° (score={best_score:.2f}, geom={best_geom:.2f})"
+        )
 
     return best_angle, best_rotated, best_cropped
 
@@ -501,6 +548,7 @@ def crop_tables_from_bytes(
         return_rotation_debug: if True, also creates a debug grid image
         save_rotation_debug_path: where to save the debug grid (PNG) if enabled
     """
+
     def _log(msg: str):
         if verbose:
             tqdm.write(msg)
@@ -576,9 +624,15 @@ def crop_tables_from_bytes_png(
 def collect_files(input_dir: Path, include_subdirs: bool) -> List[Path]:
     if include_subdirs:
         all_paths = list(input_dir.rglob("*"))
-        return [p for p in all_paths if p.is_file() and p.suffix.lower() in ALLOWED_EXTS]
+        return [
+            p for p in all_paths if p.is_file() and p.suffix.lower() in ALLOWED_EXTS
+        ]
     else:
-        return [p for p in input_dir.iterdir() if p.is_file() and p.suffix.lower() in ALLOWED_EXTS]
+        return [
+            p
+            for p in input_dir.iterdir()
+            if p.is_file() and p.suffix.lower() in ALLOWED_EXTS
+        ]
 
 
 def process_folder(
@@ -614,7 +668,7 @@ def process_folder(
             if verbose:
                 tqdm.write(f"\n{'='*60}")
                 tqdm.write(f"Processing: {p.name}")
-                tqdm.write('='*60)
+                tqdm.write("=" * 60)
 
             image_bytes = p.read_bytes()
 
@@ -670,26 +724,56 @@ def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(
         description="YOLO-based auto-rotation: tries all rotations and picks the best."
     )
-    ap.add_argument("--in", dest="input_dir", required=False, default="input_images",
-                    help="Input folder containing images.")
-    ap.add_argument("--out", dest="output_dir", required=False, default="output_crops",
-                    help="Output folder for cropped PNGs.")
-    ap.add_argument("--conf", dest="conf_thresh", type=float, default=0.25,
-                    help="Confidence threshold for detections.")
-    ap.add_argument("--device", default=DEVICE,
-                    help="Device for inference (cpu or cuda:0).")
-    ap.add_argument("--no-bottom-bias", dest="prefer_bottom", action="store_false",
-                    help="Disable preference for tables at bottom.")
-    ap.add_argument("--bottom-weight", type=float, default=0.3,
-                    help="Weight for bottom position bias (0-1).")
-    ap.add_argument("--include-subdirs", action="store_true",
-                    help="Process files in subfolders recursively.")
-    ap.add_argument("--no-progress", action="store_true",
-                    help="Disable tqdm progress bar.")
-    ap.add_argument("--quiet", action="store_true",
-                    help="Disable verbose logging.")
-    ap.add_argument("--rotation-debug", action="store_true",
-                    help="Save a rotation candidates debug grid PNG per image.")
+    ap.add_argument(
+        "--in",
+        dest="input_dir",
+        required=False,
+        default="input_images",
+        help="Input folder containing images.",
+    )
+    ap.add_argument(
+        "--out",
+        dest="output_dir",
+        required=False,
+        default="output_crops",
+        help="Output folder for cropped PNGs.",
+    )
+    ap.add_argument(
+        "--conf",
+        dest="conf_thresh",
+        type=float,
+        default=0.25,
+        help="Confidence threshold for detections.",
+    )
+    ap.add_argument(
+        "--device", default=DEVICE, help="Device for inference (cpu or cuda:0)."
+    )
+    ap.add_argument(
+        "--no-bottom-bias",
+        dest="prefer_bottom",
+        action="store_false",
+        help="Disable preference for tables at bottom.",
+    )
+    ap.add_argument(
+        "--bottom-weight",
+        type=float,
+        default=0.3,
+        help="Weight for bottom position bias (0-1).",
+    )
+    ap.add_argument(
+        "--include-subdirs",
+        action="store_true",
+        help="Process files in subfolders recursively.",
+    )
+    ap.add_argument(
+        "--no-progress", action="store_true", help="Disable tqdm progress bar."
+    )
+    ap.add_argument("--quiet", action="store_true", help="Disable verbose logging.")
+    ap.add_argument(
+        "--rotation-debug",
+        action="store_true",
+        help="Save a rotation candidates debug grid PNG per image.",
+    )
     return ap.parse_args()
 
 
@@ -698,9 +782,9 @@ def main():
     global DEVICE
     DEVICE = args.device
 
-    tqdm.write("="*60)
+    tqdm.write("=" * 60)
     tqdm.write("YOLO Auto-Rotation Table Cropper")
-    tqdm.write("="*60)
+    tqdm.write("=" * 60)
     tqdm.write(f"Input dir:       {args.input_dir}")
     tqdm.write(f"Output dir:      {args.output_dir}")
     tqdm.write(f"Confidence:      {args.conf_thresh}")
@@ -710,7 +794,7 @@ def main():
     tqdm.write(f"Include subdirs: {args.include_subdirs}")
     tqdm.write(f"Verbose:         {not args.quiet}")
     tqdm.write(f"Rotation debug:  {args.rotation_debug}")
-    tqdm.write("="*60 + "\n")
+    tqdm.write("=" * 60 + "\n")
 
     process_folder(
         input_dir=args.input_dir,
