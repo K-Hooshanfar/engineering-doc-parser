@@ -435,6 +435,8 @@ class TestBatchProcessing:
 
         # Setup mocks
         test_files = [tmp_path / "img1.png", tmp_path / "img2.jpg"]
+        for f in test_files:
+            f.write_bytes(b"dummy")
         mock_collect.return_value = test_files
 
         # Mock successful cropping
@@ -469,7 +471,7 @@ class TestCLI:
         with patch("sys.argv", ["cropper.py"]):
             args = parse_args()
 
-            assert args.input_dir == "input_images"
+            assert args.input_path == "input_images"
             assert args.output_dir == "output_crops"
             assert args.conf_thresh == 0.25
             assert args.prefer_bottom is True
@@ -494,7 +496,7 @@ class TestCLI:
         ):
             args = parse_args()
 
-            assert args.input_dir == "custom_input"
+            assert args.input_path == "custom_input"
             assert args.output_dir == "custom_output"
             assert args.conf_thresh == 0.3
             assert args.prefer_bottom is False

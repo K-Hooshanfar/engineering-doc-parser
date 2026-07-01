@@ -1,0 +1,26 @@
+# Training config for train.py
+# Copy and edit paths for your environment.
+
+dataset:
+  source_images: data/raw/images
+  source_labels: data/raw/labels
+  dest_base: data/dataset
+  data_yaml: data/dataset/data.yaml   # auto-written if missing
+  nc: 1
+  names: [table]
+  seed: 42
+  split:
+    train: 0.7
+    val: 0.2
+    test: 0.1
+
+training:
+  model: yolov8n.pt          # or path/to/existing/best.pt for fine-tuning
+  epochs: 100
+  batch: 8
+  imgsz: 640
+  device: 0                  # use "cpu" if no GPU
+  workers: 0
+  project: runs/detect
+  name: table_train
+  patience: 50

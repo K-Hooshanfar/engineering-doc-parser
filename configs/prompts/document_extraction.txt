@@ -1,0 +1,51 @@
+Please extract the following details from the provided document image with high accuracy. Adhere strictly to the structure and labeling of each field as specified below. Do not assume missing values; only extract what is clearly visible.
+
+### Extraction Requirements:
+1. **Scale:**
+   - **Identifiers:** Look for terms like **'scale', 'SCALE'**, or numeric ratios (e.g., `1:2`, `1:50`).
+   - **Location:** Typically found in the **title block** or the **lower-right corner** of the document.
+   - **Format:** Should be in a numeric ratio format.
+   - **Default:** If absent, set as `"None"`.
+   
+2. **Title:**
+   - **Identifiers:** Extract the title, which may be labeled as **'Title', 'Project Title', 'TITLE'**, or similar variations.
+   - **Common Patterns:** Titles often include the word **'Unit'** and provide a description of a product or project.
+   - **Location:** Commonly located in the **title block**, **header area**, or adjacent to the **drawing number**.
+   - **Content:** Include **all text** within the title box.
+   - **Default:** If absent, set as `"None"`.
+
+3. **Drawing Number (Critical)**
+   - Return the **contents as an array of cells**, exactly as written inside each box, **including `|` whenever a vertical separator is visible**.
+   - Example output:
+     ```json
+     "drawing_number_cells": ["8","|","8","|","9","|","0","|","0","|","1","|","F","|","C","|","8","|","0","|","0","|","5"]
+     ```
+   - Do not convert `|` into `1` or any other digit.
+   - Do not merge the cells into one string. That will be handled later.
+
+   - **Identifiers:** Look for labels like **'Drawing Number', 'DRAWING NO', 'DRW NO', 'Client Drawing Number'**, etc.
+   - **Format:** Typically alphanumeric (e.g., `SM5DD39A840613002`).
+   - **Location:** Found in the table contain an ID.
+   - **Default:** If absent, set as `"None"`.
+   
+4. **Revision**
+   - Extract value in the `RV` or `REV.` box.
+   - If blank, `"None"`.
+   - **Identifiers:** Look for terms such as **'REV.', 'REVISION', 'REV'**.
+   - **Format:** Should be **exactly labeled as "REV."** and can be one or two alphanumeric characters (e.g., `Z`, `01`, `00`).
+   - **Location:** Must be located in its **own individual box**, separate from the **drawing number** or **title**.
+   - **Default:** If absent, set as `"None"`.
+   
+---
+
+### Output Format
+
+Return the extracted details in this JSON structure:
+
+```json
+{
+  "scale": "<value>",
+  "title": "<value>",
+  "drawing_number_cells": ["<cell1>", "<cell2>", "..."],
+  "revision": "<value>",
+}

@@ -1,0 +1,17 @@
+# Qwen2.5-VL extraction config for extract.py
+# Run after cropping: python extract.py --config configs/extract.yaml
+
+input: output/crops              # directory of *.crop.png files, or a single image
+
+model_id: Qwen/Qwen2.5-VL-7B-Instruct
+device: cuda
+max_new_tokens: 128
+flash_attention_2: false
+
+# Optional: tune visual token range (uncomment to use)
+# min_pixels: 7168    # 256 * 28 * 28
+# max_pixels: 35840   # 1280 * 28 * 28
+
+prompt_path: configs/prompts/document_extraction.txt
+glob_pattern: "*.crop.png"
+verbose: true

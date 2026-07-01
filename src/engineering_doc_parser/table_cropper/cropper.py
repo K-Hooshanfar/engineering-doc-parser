@@ -528,6 +528,13 @@ def find_best_rotation(
 # --------------------
 # Core API
 # --------------------
+def _resolve_model_paths(model_paths: Optional[List[str]]) -> List[str]:
+    paths = model_paths if model_paths is not None else MODEL_PATHS
+    if not paths:
+        raise ValueError("No model paths configured. Pass model_paths or set MODEL_PATHS.")
+    return paths
+
+
 def crop_tables_from_bytes(
     image_bytes: bytes,
     conf_thresh: float,
@@ -537,6 +544,7 @@ def crop_tables_from_bytes(
     rotation_candidates_debug: Optional[List[Dict[str, float]]] = None,
     return_rotation_debug: bool = False,
     save_rotation_debug_path: Optional[str] = None,
+    model_paths: Optional[List[str]] = None,
 ) -> np.ndarray:
     """
     Decode bytes, find best rotation using YOLO, then crop.
@@ -554,13 +562,14 @@ def crop_tables_from_bytes(
             tqdm.write(msg)
 
     image = load_image_from_bytes(image_bytes, page_index=0)
+    paths = _resolve_model_paths(model_paths)
 
     debug_images: Optional[List[np.ndarray]] = [] if return_rotation_debug else None
 
     # Try all rotations with first model
     best_angle, rotated_image, cropped = find_best_rotation(
         image=image,
-        model_path=MODEL_PATHS[0],
+        model_path=paths[0],
         conf_thresh=conf_thresh,
         prefer_bottom=prefer_bottom,
         bottom_weight=bottom_weight,
@@ -577,13 +586,13 @@ def crop_tables_from_bytes(
             _log(f"🖼  Saved rotation debug grid: {save_rotation_debug_path}")
 
     if cropped is not None:
-        _log(f"✅ Using model: {MODEL_PATHS[0]}")
+        _log(f"✅ Using model: {paths[0]}")
         return cropped
 
     # If first model failed, try others on the best rotation
     _log(f"⚠️  First model found no detections, trying other models at {best_angle}°...")
-    for i, mp in enumerate(MODEL_PATHS[1:], start=2):
-        _log(f"[{i}/{len(MODEL_PATHS)}] Trying model: {mp}")
+    for i, mp in enumerate(paths[1:], start=2):
+        _log(f"[{i}/{len(paths)}] Trying model: {mp}")
         success, cropped, *_ = detect_with_model(mp, rotated_image, conf_thresh)
         if success and cropped is not None:
             _log(f"✅ Using model: {mp}")
@@ -591,7 +600,7 @@ def crop_tables_from_bytes(
 
     raise RuntimeError(
         f"No detections found by any model at any rotation. "
-        f"Tried {len(MODEL_PATHS)} models at 4 rotations each."
+        f"Tried {len(paths)} models at 4 rotations each."
     )
 
 
@@ -604,6 +613,7 @@ def crop_tables_from_bytes_png(
     rotation_candidates_debug: Optional[List[Dict[str, float]]] = None,
     return_rotation_debug: bool = False,
     save_rotation_debug_path: Optional[str] = None,
+    model_paths: Optional[List[str]] = None,
 ) -> bytes:
     cropped_bgr = crop_tables_from_bytes(
         image_bytes=image_bytes,
@@ -614,6 +624,7 @@ def crop_tables_from_bytes_png(
         rotation_candidates_debug=rotation_candidates_debug,
         return_rotation_debug=return_rotation_debug,
         save_rotation_debug_path=save_rotation_debug_path,
+        model_paths=model_paths,
     )
     return encode_png_bytes(cropped_bgr)
 
@@ -635,6 +646,48 @@ def collect_files(input_dir: Path, include_subdirs: bool) -> List[Path]:
         ]
 
 
+def _process_one_file(
+    image_path: Path,
+    output_dir: Path,
+    *,
+    conf_thresh: float,
+    prefer_bottom: bool,
+    bottom_weight: float,
+    verbose: bool,
+    rotation_debug: bool,
+    model_paths: Optional[List[str]],
+) -> None:
+    if verbose:
+        tqdm.write(f"\n{'='*60}")
+        tqdm.write(f"Processing: {image_path.name}")
+        tqdm.write("=" * 60)
+
+    image_bytes = image_path.read_bytes()
+
+    debug_path = None
+    if rotation_debug:
+        debug_path = str(output_dir / f"{image_path.stem}.rotation_debug.png")
+
+    cropped_png = crop_tables_from_bytes_png(
+        image_bytes=image_bytes,
+        conf_thresh=conf_thresh,
+        prefer_bottom=prefer_bottom,
+        bottom_weight=bottom_weight,
+        verbose=verbose,
+        rotation_candidates_debug=None,
+        return_rotation_debug=rotation_debug,
+        save_rotation_debug_path=debug_path,
+        model_paths=model_paths,
+    )
+
+    out_path = output_dir / f"{image_path.stem}.crop.png"
+    with open(out_path, "wb") as f:
+        f.write(cropped_png)
+
+    if verbose:
+        tqdm.write(f"✅ Saved: {out_path}")
+
+
 def process_folder(
     input_dir: str,
     output_dir: str,
@@ -645,7 +698,8 @@ def process_folder(
     include_subdirs: bool = False,
     show_progress: bool = True,
     rotation_debug: bool = False,
-) -> None:
+    model_paths: Optional[List[str]] = None,
+) -> Tuple[int, int]:
     inp = Path(input_dir)
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -665,36 +719,17 @@ def process_folder(
 
     for p in iterator:
         try:
-            if verbose:
-                tqdm.write(f"\n{'='*60}")
-                tqdm.write(f"Processing: {p.name}")
-                tqdm.write("=" * 60)
-
-            image_bytes = p.read_bytes()
-
-            debug_path = None
-            if rotation_debug:
-                debug_path = str(out / f"{p.stem}.rotation_debug.png")
-
-            cropped_png = crop_tables_from_bytes_png(
-                image_bytes=image_bytes,
+            _process_one_file(
+                p,
+                out,
                 conf_thresh=conf_thresh,
                 prefer_bottom=prefer_bottom,
                 bottom_weight=bottom_weight,
                 verbose=verbose,
-                rotation_candidates_debug=None,
-                return_rotation_debug=rotation_debug,
-                save_rotation_debug_path=debug_path,
+                rotation_debug=rotation_debug,
+                model_paths=model_paths,
             )
-
-            out_name = f"{p.stem}.crop.png"
-            out_path = out / out_name
-            with open(out_path, "wb") as f:
-                f.write(cropped_png)
-
             saved += 1
-            if verbose:
-                tqdm.write(f"✅ Saved: {out_path}")
         except RuntimeError as e:
             failed += 1
             tqdm.write(f"❌ Failed: {p.name} | {e}")
@@ -715,6 +750,64 @@ def process_folder(
         f"{'='*60}\n"
     )
     tqdm.write(summary)
+    return saved, failed
+
+
+def process_path(
+    input_path: str,
+    output_dir: str,
+    conf_thresh: float = 0.25,
+    prefer_bottom: bool = True,
+    bottom_weight: float = 0.3,
+    verbose: bool = True,
+    include_subdirs: bool = False,
+    show_progress: bool = True,
+    rotation_debug: bool = False,
+    model_paths: Optional[List[str]] = None,
+    device: Optional[str] = None,
+) -> Tuple[int, int]:
+    """Process a single image file or every image in a directory."""
+    global DEVICE
+    if device is not None:
+        DEVICE = device
+
+    inp = Path(input_path)
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    if not inp.exists():
+        raise ValueError(f"Input path not found: {input_path}")
+
+    if inp.is_file():
+        if inp.suffix.lower() not in ALLOWED_EXTS:
+            raise ValueError(
+                f"Unsupported file type: {inp.suffix}. "
+                f"Allowed: {', '.join(sorted(ALLOWED_EXTS))}"
+            )
+        _process_one_file(
+            inp,
+            out,
+            conf_thresh=conf_thresh,
+            prefer_bottom=prefer_bottom,
+            bottom_weight=bottom_weight,
+            verbose=verbose,
+            rotation_debug=rotation_debug,
+            model_paths=model_paths,
+        )
+        return 1, 0
+
+    return process_folder(
+        input_dir=str(inp),
+        output_dir=str(out),
+        conf_thresh=conf_thresh,
+        prefer_bottom=prefer_bottom,
+        bottom_weight=bottom_weight,
+        verbose=verbose,
+        include_subdirs=include_subdirs,
+        show_progress=show_progress,
+        rotation_debug=rotation_debug,
+        model_paths=model_paths,
+    )
 
 
 # --------------------
@@ -726,10 +819,10 @@ def parse_args() -> argparse.Namespace:
     )
     ap.add_argument(
         "--in",
-        dest="input_dir",
+        dest="input_path",
         required=False,
         default="input_images",
-        help="Input folder containing images.",
+        help="Input image file or folder.",
     )
     ap.add_argument(
         "--out",
@@ -774,6 +867,13 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Save a rotation candidates debug grid PNG per image.",
     )
+    ap.add_argument(
+        "--model-path",
+        dest="model_paths",
+        nargs="+",
+        default=None,
+        help="YOLO model path(s) (.pt or .onnx). First model is used for rotation search.",
+    )
     return ap.parse_args()
 
 
@@ -785,7 +885,7 @@ def main():
     tqdm.write("=" * 60)
     tqdm.write("YOLO Auto-Rotation Table Cropper")
     tqdm.write("=" * 60)
-    tqdm.write(f"Input dir:       {args.input_dir}")
+    tqdm.write(f"Input:          {args.input_path}")
     tqdm.write(f"Output dir:      {args.output_dir}")
     tqdm.write(f"Confidence:      {args.conf_thresh}")
     tqdm.write(f"Device:          {DEVICE}")
@@ -794,10 +894,12 @@ def main():
     tqdm.write(f"Include subdirs: {args.include_subdirs}")
     tqdm.write(f"Verbose:         {not args.quiet}")
     tqdm.write(f"Rotation debug:  {args.rotation_debug}")
+    if args.model_paths:
+        tqdm.write(f"Model paths:     {args.model_paths}")
     tqdm.write("=" * 60 + "\n")
 
-    process_folder(
-        input_dir=args.input_dir,
+    process_path(
+        input_path=args.input_path,
         output_dir=args.output_dir,
         conf_thresh=args.conf_thresh,
         prefer_bottom=args.prefer_bottom,
@@ -806,6 +908,8 @@ def main():
         include_subdirs=args.include_subdirs,
         show_progress=not args.no_progress,
         rotation_debug=args.rotation_debug,
+        model_paths=args.model_paths,
+        device=args.device,
     )
 
 

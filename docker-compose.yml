@@ -1,0 +1,45 @@
+services:
+  crop:
+    build: .
+    image: engineering-doc-parser:latest
+    gpus: all
+    volumes:
+      - ./data:/data
+    command:
+      - run.py
+      - --config
+      - /data/run.yaml
+
+  crop-and-extract:
+    build: .
+    image: engineering-doc-parser:latest
+    gpus: all
+    volumes:
+      - ./data:/data
+    command:
+      - run.py
+      - --config
+      - /data/run.yaml
+      - --extract
+
+  extract:
+    build: .
+    image: engineering-doc-parser:latest
+    gpus: all
+    volumes:
+      - ./data:/data
+    command:
+      - extract.py
+      - --config
+      - /data/extract.yaml
+
+  train:
+    build: .
+    image: engineering-doc-parser:latest
+    gpus: all
+    volumes:
+      - ./data:/data
+    command:
+      - train.py
+      - --config
+      - /data/train.yaml

@@ -1,0 +1,14 @@
+# Runtime dependencies for train.py, run.py, and extract.py
+numpy>=1.23.5,<2
+opencv-python-headless>=4.8
+pillow>=11.0.0
+tqdm>=4.67.1
+ultralytics>=8.3.70
+PyYAML>=6.0.2
+
+# Qwen2.5-VL extraction (torch is provided by the GPU base image)
+transformers>=4.49.0
+qwen-vl-utils>=0.0.8
+accelerate>=0.34.0
+safetensors>=0.4.0
+einops>=0.8.0

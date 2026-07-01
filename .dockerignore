@@ -1,0 +1,27 @@
+.git
+.github
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov
+.coverage
+*.egg-info
+dist
+build
+
+# Local data and training outputs (mount at runtime instead)
+data/
+runs/
+output/
+input_images/
+output_crops/
+
+# Dev-only
+tests/
+requirements-dev.txt
+requirements.txt
+.pre-commit-config.yaml
