@@ -57,7 +57,7 @@ MODEL_PATHS: List[str] = [
 
 **Basic usage:**
 ```bash
-python new_inference/inference_yolo.py \
+python -m engineering_doc_parser.table_cropper.cropper \
   --in input_images \
   --out output_crops \
   --conf 0.25
@@ -65,7 +65,7 @@ python new_inference/inference_yolo.py \
 
 **With all options:**
 ```bash
-python new_inference/inference_yolo.py \
+python -m engineering_doc_parser.table_cropper.cropper \
   --in /path/to/images \
   --out /path/to/output \
   --conf 0.3 \
@@ -79,7 +79,7 @@ python new_inference/inference_yolo.py \
 
 **Process a single image from bytes:**
 ```python
-from new_inference.inference_yolo import crop_tables_from_bytes_png
+from engineering_doc_parser.table_cropper.cropper import crop_tables_from_bytes_png
 
 with open("document.png", "rb") as f:
     image_bytes = f.read()
@@ -98,7 +98,7 @@ with open("output_crop.png", "wb") as f:
 
 **Process a folder:**
 ```python
-from new_inference.inference_yolo import process_folder
+from engineering_doc_parser.table_cropper.cropper import process_folder
 
 process_folder(
     input_dir="input_images",

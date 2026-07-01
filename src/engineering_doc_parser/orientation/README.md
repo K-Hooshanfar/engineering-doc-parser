@@ -1,4 +1,4 @@
-# 📄 Document Orientation Detector - FOCR 8
+# Document Orientation Detector
 
 A Python CLI that uses **Tesseract OSD** for primary orientation detection and an **EAST text-detector–based heuristic** as a fallback to auto-rotate scanned/photographed documents. Outputs are written to a chosen folder; rotated files keep the original name with a `_rotated` suffix. 
 

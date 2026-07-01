@@ -1,23 +1,15 @@
 """
-Tests for the `new_rotation.new_rotation` module.
+Tests for the `engineering_doc_parser.rotation` module.
 
 This suite tests EasyOCR-based rotation detection, OCR scoring,
 image preprocessing, and batch processing. It mocks external dependencies
 (EasyOCR, Tesseract) to keep tests fast and hermetic.
 """
 
-import sys
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
-
-# Add project root to path
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-# Add new_rotation directory to path for direct imports
-sys.path.insert(0, str(project_root / "new_rotation"))
 
 
 @pytest.fixture
@@ -69,7 +61,7 @@ class TestRotation:
 
     def test_rotate_image_0_degrees(self, sample_image_bgr):
         """Test rotation by 0 degrees (no change)."""
-        import new_rotation
+        import engineering_doc_parser.rotation as new_rotation
 
         rotate_image = new_rotation.rotate_image
 
@@ -79,7 +71,7 @@ class TestRotation:
 
     def test_rotate_image_90_degrees(self, sample_image_bgr):
         """Test rotation by 90 degrees."""
-        import new_rotation
+        import engineering_doc_parser.rotation as new_rotation
 
         rotate_image = new_rotation.rotate_image
 
@@ -90,7 +82,7 @@ class TestRotation:
 
     def test_rotate_image_180_degrees(self, sample_image_bgr):
         """Test rotation by 180 degrees."""
-        from new_rotation.new_rotation import rotate_image
+        from engineering_doc_parser.rotation.core import rotate_image
 
         rotated = rotate_image(sample_image_bgr, 180)
 
@@ -98,7 +90,7 @@ class TestRotation:
 
     def test_rotate_image_270_degrees(self, sample_image_bgr):
         """Test rotation by 270 degrees."""
-        from new_rotation.new_rotation import rotate_image
+        from engineering_doc_parser.rotation.core import rotate_image
 
         h, w = sample_image_bgr.shape[:2]
         rotated = rotate_image(sample_image_bgr, 270)
@@ -107,7 +99,7 @@ class TestRotation:
 
     def test_rotate_image_invalid_angle(self, sample_image_bgr):
         """Test rotation with invalid angle raises error."""
-        from new_rotation.new_rotation import rotate_image
+        from engineering_doc_parser.rotation.core import rotate_image
 
         with pytest.raises(ValueError):
             rotate_image(sample_image_bgr, 45)
@@ -118,7 +110,7 @@ class TestOSDParsing:
 
     def test_parse_osd_standard_format(self):
         """Test parsing standard OSD output."""
-        from new_rotation.new_rotation import parse_osd
+        from engineering_doc_parser.rotation.core import parse_osd
 
         osd_text = "Rotate: 90\nOrientation confidence: 18.5"
         angle, conf = parse_osd(osd_text)
@@ -128,7 +120,7 @@ class TestOSDParsing:
 
     def test_parse_osd_orientation_format(self):
         """Test parsing OSD output with 'Orientation in degrees' format."""
-        from new_rotation.new_rotation import parse_osd
+        from engineering_doc_parser.rotation.core import parse_osd
 
         osd_text = "Orientation in degrees: 180\nOrientation confidence: 20.0"
         angle, conf = parse_osd(osd_text)
@@ -138,7 +130,7 @@ class TestOSDParsing:
 
     def test_parse_osd_no_match(self):
         """Test parsing OSD output with no matches."""
-        from new_rotation.new_rotation import parse_osd
+        from engineering_doc_parser.rotation.core import parse_osd
 
         osd_text = "No rotation information"
         angle, conf = parse_osd(osd_text)
@@ -146,10 +138,10 @@ class TestOSDParsing:
         assert angle is None
         assert conf is None
 
-    @patch("new_rotation.new_rotation.pytesseract")
+    @patch("engineering_doc_parser.rotation.core.pytesseract")
     def test_tesseract_osd_angle_conf_success(self, mock_pytesseract, sample_image_bgr):
         """Test successful Tesseract OSD call."""
-        from new_rotation.new_rotation import tesseract_osd_angle_conf
+        from engineering_doc_parser.rotation.core import tesseract_osd_angle_conf
 
         mock_pytesseract.image_to_osd.return_value = (
             "Rotate: 270\nOrientation confidence: 15.0"
@@ -160,12 +152,12 @@ class TestOSDParsing:
         assert angle == 270
         assert conf == 15.0
 
-    @patch("new_rotation.new_rotation.pytesseract")
+    @patch("engineering_doc_parser.rotation.core.pytesseract")
     def test_tesseract_osd_angle_conf_exception(
         self, mock_pytesseract, sample_image_bgr
     ):
         """Test Tesseract OSD call with exception."""
-        from new_rotation.new_rotation import tesseract_osd_angle_conf
+        from engineering_doc_parser.rotation.core import tesseract_osd_angle_conf
 
         mock_pytesseract.image_to_osd.side_effect = Exception("Tesseract error")
 
@@ -180,7 +172,7 @@ class TestBBoxDimensions:
 
     def test_get_bbox_dimensions_horizontal(self):
         """Test dimension calculation for horizontal box."""
-        from new_rotation.new_rotation import get_bbox_dimensions
+        from engineering_doc_parser.rotation.core import get_bbox_dimensions
 
         bbox = [[0, 0], [100, 0], [100, 20], [0, 20]]
         width, height = get_bbox_dimensions(bbox)
@@ -191,7 +183,7 @@ class TestBBoxDimensions:
 
     def test_get_bbox_dimensions_vertical(self):
         """Test dimension calculation for vertical box."""
-        from new_rotation.new_rotation import get_bbox_dimensions
+        from engineering_doc_parser.rotation.core import get_bbox_dimensions
 
         bbox = [[0, 0], [20, 0], [20, 100], [0, 100]]
         width, height = get_bbox_dimensions(bbox)
@@ -206,7 +198,7 @@ class TestScoring:
 
     def test_calculate_orientation_score_good_text(self):
         """Test scoring with high-confidence horizontal text."""
-        from new_rotation.new_rotation import calculate_orientation_score
+        from engineering_doc_parser.rotation.core import calculate_orientation_score
 
         # High-confidence horizontal text
         result = [
@@ -220,7 +212,7 @@ class TestScoring:
 
     def test_calculate_orientation_score_vertical_text(self):
         """Test scoring with vertical text (should score lower)."""
-        from new_rotation.new_rotation import calculate_orientation_score
+        from engineering_doc_parser.rotation.core import calculate_orientation_score
 
         # Vertical text (bad orientation)
         result = [
@@ -234,7 +226,7 @@ class TestScoring:
 
     def test_calculate_orientation_score_empty(self):
         """Test scoring with empty result."""
-        from new_rotation.new_rotation import calculate_orientation_score
+        from engineering_doc_parser.rotation.core import calculate_orientation_score
 
         score = calculate_orientation_score([], conf_th=0.45)
 
@@ -242,7 +234,7 @@ class TestScoring:
 
     def test_calculate_orientation_score_low_confidence(self):
         """Test scoring with low-confidence text."""
-        from new_rotation.new_rotation import calculate_orientation_score
+        from engineering_doc_parser.rotation.core import calculate_orientation_score
 
         # Low confidence text
         result = [
@@ -256,7 +248,7 @@ class TestScoring:
 
     def test_calculate_orientation_score_word_patterns(self):
         """Test scoring with word-like patterns."""
-        from new_rotation.new_rotation import calculate_orientation_score
+        from engineering_doc_parser.rotation.core import calculate_orientation_score
 
         # Alphanumeric words
         result = [
@@ -272,14 +264,14 @@ class TestScoring:
 class TestPredictRotation:
     """Tests for rotation prediction."""
 
-    @patch("new_rotation.new_rotation.easyocr.Reader")
-    @patch("new_rotation.new_rotation.tesseract_osd_angle_conf")
-    @patch("new_rotation.new_rotation.cv2.imread")
+    @patch("engineering_doc_parser.rotation.core.easyocr.Reader")
+    @patch("engineering_doc_parser.rotation.core.tesseract_osd_angle_conf")
+    @patch("engineering_doc_parser.rotation.core.cv2.imread")
     def test_predict_rotation_improved_success(
         self, mock_imread, mock_osd, mock_reader_class, sample_image_bgr
     ):
         """Test successful rotation prediction."""
-        from new_rotation.new_rotation import predict_rotation_improved
+        from engineering_doc_parser.rotation.core import predict_rotation_improved
 
         # Setup mocks
         mock_imread.return_value = sample_image_bgr
@@ -304,14 +296,14 @@ class TestPredictRotation:
         assert "num_detections" in meta
         assert len(meta["scores"]) == 4  # One score per angle
 
-    @patch("new_rotation.new_rotation.easyocr.Reader")
-    @patch("new_rotation.new_rotation.tesseract_osd_angle_conf")
-    @patch("new_rotation.new_rotation.cv2.imread")
+    @patch("engineering_doc_parser.rotation.core.easyocr.Reader")
+    @patch("engineering_doc_parser.rotation.core.tesseract_osd_angle_conf")
+    @patch("engineering_doc_parser.rotation.core.cv2.imread")
     def test_predict_rotation_improved_with_osd_shortlist(
         self, mock_imread, mock_osd, mock_reader_class, sample_image_bgr
     ):
         """Test rotation prediction with OSD shortlist enabled."""
-        from new_rotation.new_rotation import predict_rotation_improved
+        from engineering_doc_parser.rotation.core import predict_rotation_improved
 
         mock_imread.return_value = sample_image_bgr
         mock_osd.return_value = (90, 20.0)  # OSD suggests 90°
@@ -329,14 +321,14 @@ class TestPredictRotation:
         assert angle in [90, 270]  # Should be OSD angle or its 180° opposite
         assert "scores" in meta
 
-    @patch("new_rotation.new_rotation.easyocr.Reader")
-    @patch("new_rotation.new_rotation.tesseract_osd_angle_conf")
-    @patch("new_rotation.new_rotation.cv2.imread")
+    @patch("engineering_doc_parser.rotation.core.easyocr.Reader")
+    @patch("engineering_doc_parser.rotation.core.tesseract_osd_angle_conf")
+    @patch("engineering_doc_parser.rotation.core.cv2.imread")
     def test_predict_rotation_improved_enhance_contrast(
         self, mock_imread, mock_osd, mock_reader_class, sample_image_bgr
     ):
         """Test rotation prediction with contrast enhancement."""
-        from new_rotation.new_rotation import predict_rotation_improved
+        from engineering_doc_parser.rotation.core import predict_rotation_improved
 
         mock_imread.return_value = sample_image_bgr
         mock_osd.return_value = (None, None)
@@ -348,8 +340,8 @@ class TestPredictRotation:
         mock_reader_class.return_value = mock_reader
 
         # Mock cv2 operations for contrast enhancement
-        with patch("new_rotation.new_rotation.cv2.cvtColor") as mock_cvt, patch(
-            "new_rotation.new_rotation.cv2.createCLAHE"
+        with patch("engineering_doc_parser.rotation.core.cv2.cvtColor") as mock_cvt, patch(
+            "engineering_doc_parser.rotation.core.cv2.createCLAHE"
         ) as mock_clahe:
 
             mock_cvt.side_effect = lambda img, code: img  # Return as-is
@@ -366,13 +358,13 @@ class TestPredictRotation:
 
             assert angle in [0, 90, 180, 270]
 
-    @patch("new_rotation.new_rotation.easyocr.Reader")
-    @patch("new_rotation.new_rotation.cv2.imread")
+    @patch("engineering_doc_parser.rotation.core.easyocr.Reader")
+    @patch("engineering_doc_parser.rotation.core.cv2.imread")
     def test_predict_rotation_improved_file_not_found(
         self, mock_imread, mock_reader_class
     ):
         """Test rotation prediction with missing file."""
-        from new_rotation.new_rotation import predict_rotation_improved
+        from engineering_doc_parser.rotation.core import predict_rotation_improved
 
         mock_imread.return_value = None
         mock_reader_class.return_value = MagicMock()
@@ -386,13 +378,13 @@ class TestPredictRotation:
 class TestAutorotateAndSave:
     """Tests for autorotate and save functions."""
 
-    @patch("new_rotation.new_rotation.predict_rotation_improved")
-    @patch("new_rotation.new_rotation.cv2.imwrite")
+    @patch("engineering_doc_parser.rotation.core.predict_rotation_improved")
+    @patch("engineering_doc_parser.rotation.core.cv2.imwrite")
     def test_autorotate_and_save_improved_success(
         self, mock_imwrite, mock_predict, sample_image_bgr, tmp_path
     ):
         """Test successful autorotate and save."""
-        from new_rotation.new_rotation import autorotate_and_save_improved
+        from engineering_doc_parser.rotation.core import autorotate_and_save_improved
 
         mock_predict.return_value = (
             90,  # angle
@@ -415,16 +407,16 @@ class TestAutorotateAndSave:
         assert saved_path == str(output_path)
         assert mock_imwrite.called
 
-    @patch("new_rotation.new_rotation.predict_rotation_improved")
+    @patch("engineering_doc_parser.rotation.core.predict_rotation_improved")
     def test_autorotate_and_save_improved_default_output(
         self, mock_predict, sample_image_bgr, tmp_path
     ):
         """Test autorotate with default output path."""
-        from new_rotation.new_rotation import autorotate_and_save_improved
+        from engineering_doc_parser.rotation.core import autorotate_and_save_improved
 
         mock_predict.return_value = (0, [], sample_image_bgr, {"scores": {}})
 
-        with patch("new_rotation.new_rotation.cv2.imwrite", return_value=True):
+        with patch("engineering_doc_parser.rotation.core.cv2.imwrite", return_value=True):
             input_path = tmp_path / "document.png"
             angle, ocr_result, saved_path, meta = autorotate_and_save_improved(
                 image_path=str(input_path),
@@ -437,13 +429,13 @@ class TestAutorotateAndSave:
             # Should generate default name with rotation angle
             assert ".rot0.png" in saved_path or saved_path.endswith(".rot0.png")
 
-    @patch("new_rotation.new_rotation.predict_rotation_improved")
-    @patch("new_rotation.new_rotation.cv2.imwrite")
+    @patch("engineering_doc_parser.rotation.core.predict_rotation_improved")
+    @patch("engineering_doc_parser.rotation.core.cv2.imwrite")
     def test_autorotate_and_save_improved_file_exists(
         self, mock_imwrite, mock_predict, sample_image_bgr, tmp_path
     ):
         """Test autorotate when output file exists without overwrite."""
-        from new_rotation.new_rotation import autorotate_and_save_improved
+        from engineering_doc_parser.rotation.core import autorotate_and_save_improved
 
         mock_predict.return_value = (0, [], sample_image_bgr, {})
         output_path = tmp_path / "output.png"
@@ -458,13 +450,13 @@ class TestAutorotateAndSave:
                 overwrite=False,
             )
 
-    @patch("new_rotation.new_rotation.predict_rotation_improved")
-    @patch("new_rotation.new_rotation.cv2.imwrite")
+    @patch("engineering_doc_parser.rotation.core.predict_rotation_improved")
+    @patch("engineering_doc_parser.rotation.core.cv2.imwrite")
     def test_autorotate_and_save_improved_write_failure(
         self, mock_imwrite, mock_predict, sample_image_bgr
     ):
         """Test autorotate when image write fails."""
-        from new_rotation.new_rotation import autorotate_and_save_improved
+        from engineering_doc_parser.rotation.core import autorotate_and_save_improved
 
         mock_predict.return_value = (0, [], sample_image_bgr, {})
         mock_imwrite.return_value = False
@@ -482,13 +474,13 @@ class TestAutorotateAndSave:
 class TestAutorotateFolder:
     """Tests for folder batch processing."""
 
-    @patch("new_rotation.new_rotation.predict_rotation_improved")
-    @patch("new_rotation.new_rotation.cv2.imwrite")
+    @patch("engineering_doc_parser.rotation.core.predict_rotation_improved")
+    @patch("engineering_doc_parser.rotation.core.cv2.imwrite")
     def test_autorotate_folder_success(
         self, mock_imwrite, mock_predict, tmp_path, sample_image_bgr
     ):
         """Test successful folder processing."""
-        from new_rotation.new_rotation import autorotate_folder
+        from engineering_doc_parser.rotation.core import autorotate_folder
 
         # Create test images
         input_dir = tmp_path / "input"
@@ -523,12 +515,12 @@ class TestAutorotateFolder:
         assert all(r[2] in [0, 90, 180, 270] for r in results)  # Valid angles
         assert output_dir.exists()
 
-    @patch("new_rotation.new_rotation.predict_rotation_improved")
+    @patch("engineering_doc_parser.rotation.core.predict_rotation_improved")
     def test_autorotate_folder_skip_existing(
         self, mock_predict, tmp_path, sample_image_bgr
     ):
         """Test folder processing skips existing files."""
-        from new_rotation.new_rotation import autorotate_folder
+        from engineering_doc_parser.rotation.core import autorotate_folder
 
         input_dir = tmp_path / "input"
         input_dir.mkdir()
@@ -551,12 +543,12 @@ class TestAutorotateFolder:
         # Should skip existing file
         assert len(results) == 0
 
-    @patch("new_rotation.new_rotation.predict_rotation_improved")
+    @patch("engineering_doc_parser.rotation.core.predict_rotation_improved")
     def test_autorotate_folder_error_handling(
         self, mock_predict, tmp_path, sample_image_bgr
     ):
         """Test folder processing handles errors gracefully."""
-        from new_rotation.new_rotation import autorotate_folder
+        from engineering_doc_parser.rotation.core import autorotate_folder
 
         input_dir = tmp_path / "input"
         input_dir.mkdir()
@@ -571,7 +563,7 @@ class TestAutorotateFolder:
             Exception("Processing error"),
         ]
 
-        with patch("new_rotation.new_rotation.cv2.imwrite", return_value=True):
+        with patch("engineering_doc_parser.rotation.core.cv2.imwrite", return_value=True):
             results = autorotate_folder(
                 input_dir=str(input_dir),
                 output_dir=str(output_dir),
@@ -589,7 +581,7 @@ class TestCLI:
 
     def test_parse_args_defaults(self):
         """Test argument parser with defaults."""
-        from new_rotation.new_rotation import parse_args
+        from engineering_doc_parser.rotation.core import parse_args
 
         with patch("sys.argv", ["new_rotation.py"]):
             args = parse_args()
@@ -602,7 +594,7 @@ class TestCLI:
 
     def test_parse_args_custom(self):
         """Test argument parser with custom values."""
-        from new_rotation.new_rotation import parse_args
+        from engineering_doc_parser.rotation.core import parse_args
 
         with patch(
             "sys.argv",

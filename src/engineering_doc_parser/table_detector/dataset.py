@@ -1,4 +1,4 @@
-"""Dataset utilities for the FOCR table detector.
+"""Dataset utilities for the engineering document parser table detector.
 
 Builds YOLO-style splits (train/valid/test) by copying images and their
 matching label files into:

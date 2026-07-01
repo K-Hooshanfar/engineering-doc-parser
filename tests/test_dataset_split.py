@@ -5,14 +5,14 @@ from typing import Tuple
 
 import pytest
 
-from train.focr_table_detector.dataset import SplitConfig, prepare_dataset
+from engineering_doc_parser.table_detector.dataset import SplitConfig, prepare_dataset
 
 
 def test_config_module_import_executes_and_has_constant():
-    """Import the real rotation.config so its lines are executed for coverage."""
+    """Import orientation config so its lines are executed for coverage."""
     import importlib
 
-    cfg = importlib.import_module("rotation.config")
+    cfg = importlib.import_module("engineering_doc_parser.orientation.config")
     assert hasattr(cfg, "Config")
     assert isinstance(cfg.Config.EAST_TEXT_DETECTOR, str)
     assert cfg.Config.EAST_TEXT_DETECTOR.endswith(".pb")

@@ -42,7 +42,7 @@ def _pkg():
         mod = sys.modules.get(__package__)
         if mod is not None:
             return mod
-    mod = sys.modules.get("rotation")
+    mod = sys.modules.get("engineering_doc_parser.orientation")
     if mod is not None:
         return mod
     return sys.modules[__name__]

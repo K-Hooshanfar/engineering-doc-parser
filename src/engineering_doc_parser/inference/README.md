@@ -35,7 +35,7 @@ pip install ultralytics pillow pymupdf opencv-python numpy tqdm
 ## 🚀 Quick Start
 
 ```bash
-python Inference/inference_yolo.py \
+python src/engineering_doc_parser/inference/pipeline.py \
   --input-dir /path/to/data \
   --model-path /path/to/best.pt \
   --output-sub crops \
@@ -124,7 +124,7 @@ Given `--input-dir /data`, `--output-sub crops`, `--labels-sub labels`, `--png-e
 **Process PDFs only, non-recursive:**
 
 ```bash
-python Inference/inference_yolo.py \
+python src/engineering_doc_parser/inference/pipeline.py \
   --input-dir /data \
   --extensions "*.pdf" \
   --model-path weights/best.pt
@@ -133,7 +133,7 @@ python Inference/inference_yolo.py \
 **Force CPU, higher threshold, keep file extensions in names:**
 
 ```bash
-python Inference/inference_yolo.py \
+python src/engineering_doc_parser/inference/pipeline.py \
   --input-dir /data \
   --device cpu \
   --conf-thresh 0.5 \
@@ -144,7 +144,7 @@ python Inference/inference_yolo.py \
 **Deep directories, higher DPI for better small-text detection:**
 
 ```bash
-python Inference/inference_yolo.py \
+python src/engineering_doc_parser/inference/pipeline.py \
   --input-dir /big_corpus \
   --recursive 1 \
   --pdf-dpi 300 \

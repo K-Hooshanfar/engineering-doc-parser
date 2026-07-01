@@ -21,22 +21,20 @@ import pytest
 
 @pytest.fixture(scope="session")
 def project_root():
-    """Return the project root added to sys.path so `import rotation` works."""
-    # Adjust if your layout changes
-    return Path("/FOCR_table/rotation")
+    """Return the src directory added to sys.path for package imports."""
+    return Path(__file__).resolve().parent.parent / "src"
 
 
 @pytest.fixture(autouse=True, scope="session")
 def add_project_to_path(project_root):
-    """Prepend the project root to sys.path for the duration of the session."""
+    """Prepend src/ to sys.path for the duration of the session."""
     sys.path.insert(0, str(project_root))
     yield
-    # leave path as-is for session
 
 
 @pytest.fixture
 def rotation_mod(monkeypatch):
-    """Import the `rotation` package with safe stubs for external dependencies.
+    """Import orientation package with safe stubs for external dependencies.
 
     Stubs:
       - `config.Config` to satisfy `.config` import.
@@ -62,7 +60,7 @@ def rotation_mod(monkeypatch):
         monkeypatch.setitem(sys.modules, "pytesseract", pt)
 
     # Import (or reload) the target module
-    import rotation
+    import engineering_doc_parser.orientation as rotation
 
     rotation = importlib.reload(rotation)
     return rotation

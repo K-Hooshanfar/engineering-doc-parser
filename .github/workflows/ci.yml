@@ -68,7 +68,9 @@ jobs:
         shell: bash
         run: |
           targets=""
-          if [ -d "train" ]; then targets="$targets train"; fi
+          if [ -d "src/engineering_doc_parser" ]; then
+            targets="src/engineering_doc_parser"
+          elif [ -d "train" ]; then targets="$targets train"; fi
           if [ -d "rotation" ]; then targets="$targets rotation"; fi
           if [ -d "Inference" ]; then targets="$targets Inference"; fi
           if [ -f "pipeline.py" ]; then targets="$targets pipeline.py"; fi
@@ -115,18 +117,24 @@ jobs:
       - name: Mypy (type checking)
         run: |
           args=""
-          [ -d train ] && args="$args train"
-          [ -d rotation ] && args="$args rotation"
-          [ -d Inference ] && args="$args Inference"
-          [ -f pipeline.py ] && args="$args pipeline.py"
-          [ -z "$args" ] && args="."
+          if [ -d "src/engineering_doc_parser" ]; then
+            args="src/engineering_doc_parser"
+          else
+            [ -d train ] && args="$args train"
+            [ -d rotation ] && args="$args rotation"
+            [ -d Inference ] && args="$args Inference"
+            [ -f pipeline.py ] && args="$args pipeline.py"
+            [ -z "$args" ] && args="."
+          fi
           mypy $args
 
       - name: Pytest (coverage ≥ 85%)
         run: |
-          export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}."
+          export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}src"
           cov_args=""
-          if [ -d "train" ] && [ -d "rotation" ]; then
+          if [ -d "src/engineering_doc_parser" ]; then
+            cov_args="--cov=engineering_doc_parser"
+          elif [ -d "train" ] && [ -d "rotation" ]; then
             cov_args="--cov=train --cov=rotation"
           elif [ -d "train" ]; then
             cov_args="--cov=train"

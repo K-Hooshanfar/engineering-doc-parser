@@ -59,14 +59,14 @@ For GPU acceleration with EasyOCR:
 
 **Basic usage:**
 ```bash
-python new_rotation/new_rotation.py \
+python -m engineering_doc_parser.rotation.core \
   --in input_images \
   --out output_rotated
 ```
 
 **With all options:**
 ```bash
-python new_rotation/new_rotation.py \
+python -m engineering_doc_parser.rotation.core \
   --in /path/to/images \
   --out /path/to/output \
   --lang en \
@@ -80,7 +80,7 @@ python new_rotation/new_rotation.py \
 
 **Process a single image:**
 ```python
-from new_rotation.new_rotation import autorotate_and_save_improved
+from engineering_doc_parser.rotation.core import autorotate_and_save_improved
 
 angle, ocr_result, output_path, meta = autorotate_and_save_improved(
     image_path="document.png",
@@ -98,7 +98,7 @@ print(f"Scores: {meta['scores']}")
 
 **Process a folder:**
 ```python
-from new_rotation.new_rotation import autorotate_folder
+from engineering_doc_parser.rotation.core import autorotate_folder
 
 results = autorotate_folder(
     input_dir="input_images",
@@ -271,7 +271,7 @@ EasyOCR supports 80+ languages. Common examples:
 
 **Multi-language:**
 ```bash
-python new_rotation/new_rotation.py --lang en fr de --in input --out output
+python -m engineering_doc_parser.rotation.core --lang en fr de --in input --out output
 ```
 
 ### OSD Shortlist Mode

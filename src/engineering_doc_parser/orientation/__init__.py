@@ -1,8 +1,8 @@
-"""Public package interface for the `rotation` toolkit.
+"""Public package interface for the legacy EAST/Tesseract orientation toolkit.
 
 This module:
-- Re-exports selected functions from :mod:`rotation.rotation` so tests can
-  monkeypatch them at the *package* level (e.g., `rotation.detect_east_boxes`).
+- Re-exports selected functions from :mod:`engineering_doc_parser.orientation.rotation`
+  so tests can monkeypatch them at the *package* level.
 - Re-exports third-party modules (`argparse`, `os`, `cv2`, `pytesseract`) under
   the same names for test stubbing.
 - Exposes :class:`Config` for configuration defaults/convenience.
