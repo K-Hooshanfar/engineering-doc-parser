@@ -3,6 +3,7 @@
 YOLO-based rotation detection: tries all 4 rotations and picks the best one.
 Now with rotation_candidates_debug (metrics) + visual debug grid.
 """
+
 import argparse
 import io
 from pathlib import Path
@@ -531,7 +532,9 @@ def find_best_rotation(
 def _resolve_model_paths(model_paths: Optional[List[str]]) -> List[str]:
     paths = model_paths if model_paths is not None else MODEL_PATHS
     if not paths:
-        raise ValueError("No model paths configured. Pass model_paths or set MODEL_PATHS.")
+        raise ValueError(
+            "No model paths configured. Pass model_paths or set MODEL_PATHS."
+        )
     return paths
 
 

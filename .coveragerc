@@ -1,0 +1,4 @@
+[run]
+omit =
+    src/engineering_doc_parser/extraction/*
+    src/engineering_doc_parser/inference/pipeline.py

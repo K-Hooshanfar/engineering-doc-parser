@@ -72,7 +72,9 @@ def run_prepare(cfg: Dict[str, Any]) -> tuple[int, int, int]:
     print(f"  Source images: {source_images}")
     print(f"  Source labels: {source_labels}")
     print(f"  Destination:   {dest_base}")
-    print(f"  Split:         train={split_cfg.train}, val={split_cfg.val}, test={split_cfg.test}")
+    print(
+        f"  Split:         train={split_cfg.train}, val={split_cfg.val}, test={split_cfg.test}"
+    )
     print()
 
     counts = prepare_dataset(
@@ -211,7 +213,11 @@ def merge_config(args: argparse.Namespace) -> Dict[str, Any]:
         dataset["source_labels"] = str(args.source_labels)
     if args.dest_base:
         dataset["dest_base"] = str(args.dest_base)
-    if args.train_split is not None or args.val_split is not None or args.test_split is not None:
+    if (
+        args.train_split is not None
+        or args.val_split is not None
+        or args.test_split is not None
+    ):
         split = dataset.setdefault("split", {})
         if args.train_split is not None:
             split["train"] = args.train_split

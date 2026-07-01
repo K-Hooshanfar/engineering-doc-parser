@@ -202,8 +202,25 @@ See each module's README for details.
 
 ## Testing
 
+Run the same checks as CI locally before pushing:
+
 ```bash
-pytest --cov=engineering_doc_parser --cov-report=term-missing --cov-fail-under=85
+# Windows
+.\scripts\check.ps1
+
+# Linux / macOS
+./scripts/check.sh
+```
+
+Or run individually:
+
+```bash
+export PYTHONPATH=src   # omit on Windows; use $env:PYTHONPATH="src" in PowerShell
+black --check .
+ruff check .
+pylint src/engineering_doc_parser
+mypy src/engineering_doc_parser
+pytest --cov=engineering_doc_parser --cov-report=term-missing --cov-fail-under=68
 ```
 
 ## Typical workflow

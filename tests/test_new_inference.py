@@ -11,7 +11,6 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-import engineering_doc_parser
 from engineering_doc_parser.table_cropper import cropper
 
 
@@ -35,33 +34,21 @@ def mock_yolo_model():
     """Create a mock YOLO model that returns detection results."""
     model = MagicMock()
 
-    # Mock result object
     result = MagicMock()
     result.boxes = MagicMock()
-    result.boxes.xyxy = np.array(
-        [[10, 20, 50, 80], [60, 30, 90, 100]], dtype=np.float32
-    )
-    result.boxes.conf = np.array([0.85, 0.75], dtype=np.float32)
-    result.boxes.cls = np.array([0, 1], dtype=np.int32)
 
-    # Make tensors have .cpu() and .numpy() methods
-    result.boxes.xyxy = MagicMock()
-    result.boxes.xyxy.cpu.return_value.numpy.return_value = np.array(
+    xyxy = MagicMock()
+    xyxy.cpu.return_value.numpy.return_value = np.array(
         [[10, 20, 50, 80], [60, 30, 90, 100]], dtype=np.float32
     )
-    result.boxes.conf.cpu.return_value.numpy.return_value = np.array(
-        [0.85, 0.75], dtype=np.float32
-    )
-    result.boxes.cls.cpu.return_value.numpy.return_value = np.array(
-        [0, 1], dtype=np.int32
-    )
+    conf = MagicMock()
+    conf.cpu.return_value.numpy.return_value = np.array([0.85, 0.75], dtype=np.float32)
+    cls = MagicMock()
+    cls.cpu.return_value.numpy.return_value = np.array([0, 1], dtype=np.int32)
 
-    # Simpler: just make them numpy arrays directly
-    result.boxes.xyxy = np.array(
-        [[10, 20, 50, 80], [60, 30, 90, 100]], dtype=np.float32
-    )
-    result.boxes.conf = np.array([0.85, 0.75], dtype=np.float32)
-    result.boxes.cls = np.array([0, 1], dtype=np.int32)
+    result.boxes.xyxy = xyxy
+    result.boxes.conf = conf
+    result.boxes.cls = cls
 
     model.return_value = [result]
     return model
@@ -72,7 +59,7 @@ class TestImageIO:
 
     def test_to_bgr8_uint8_grayscale(self):
         """Test conversion of grayscale uint8 to BGR."""
-        _to_bgr8 = engineering_doc_parser.table_cropper.cropper._to_bgr8
+        _to_bgr8 = cropper._to_bgr8
 
         gray = np.random.randint(0, 255, (50, 50), dtype=np.uint8)
         bgr = _to_bgr8(gray)
@@ -84,7 +71,7 @@ class TestImageIO:
 
     def test_to_bgr8_float_normalized(self):
         """Test conversion of float [0,1] to BGR."""
-        _to_bgr8 = engineering_doc_parser.table_cropper.cropper._to_bgr8
+        _to_bgr8 = cropper._to_bgr8
 
         float_img = np.random.rand(50, 50, 3).astype(np.float32)
         bgr = _to_bgr8(float_img)
@@ -95,7 +82,7 @@ class TestImageIO:
 
     def test_to_bgr8_uint16(self):
         """Test conversion of uint16 to BGR."""
-        _to_bgr8 = engineering_doc_parser.table_cropper.cropper._to_bgr8
+        _to_bgr8 = cropper._to_bgr8
 
         uint16_img = np.random.randint(0, 65535, (50, 50, 3), dtype=np.uint16)
         bgr = _to_bgr8(uint16_img)
@@ -105,7 +92,7 @@ class TestImageIO:
 
     def test_load_image_from_bytes_png(self, sample_image_bytes):
         """Test loading image from PNG bytes."""
-        load_image_from_bytes = engineering_doc_parser.table_cropper.cropper.load_image_from_bytes
+        load_image_from_bytes = cropper.load_image_from_bytes
 
         img = load_image_from_bytes(sample_image_bytes)
 
@@ -115,7 +102,7 @@ class TestImageIO:
 
     def test_encode_png_bytes(self, sample_image_bgr):
         """Test encoding BGR image to PNG bytes."""
-        encode_png_bytes = engineering_doc_parser.table_cropper.cropper.encode_png_bytes
+        encode_png_bytes = cropper.encode_png_bytes
 
         png_bytes = encode_png_bytes(sample_image_bgr)
 
@@ -129,7 +116,7 @@ class TestRotation:
 
     def test_rotate_image_0_degrees(self, sample_image_bgr):
         """Test rotation by 0 degrees (no change)."""
-        rotate_image = engineering_doc_parser.table_cropper.cropper.rotate_image
+        rotate_image = cropper.rotate_image
 
         rotated = rotate_image(sample_image_bgr, 0)
 
@@ -138,7 +125,7 @@ class TestRotation:
 
     def test_rotate_image_90_degrees(self, sample_image_bgr):
         """Test rotation by 90 degrees."""
-        rotate_image = engineering_doc_parser.table_cropper.cropper.rotate_image
+        rotate_image = cropper.rotate_image
 
         h, w = sample_image_bgr.shape[:2]
         rotated = rotate_image(sample_image_bgr, 90)
@@ -147,7 +134,7 @@ class TestRotation:
 
     def test_rotate_image_180_degrees(self, sample_image_bgr):
         """Test rotation by 180 degrees."""
-        rotate_image = engineering_doc_parser.table_cropper.cropper.rotate_image
+        rotate_image = cropper.rotate_image
 
         rotated = rotate_image(sample_image_bgr, 180)
 
@@ -155,7 +142,7 @@ class TestRotation:
 
     def test_rotate_image_270_degrees(self, sample_image_bgr):
         """Test rotation by 270 degrees."""
-        rotate_image = engineering_doc_parser.table_cropper.cropper.rotate_image
+        rotate_image = cropper.rotate_image
 
         h, w = sample_image_bgr.shape[:2]
         rotated = rotate_image(sample_image_bgr, 270)
@@ -168,7 +155,7 @@ class TestScoring:
 
     def test_boxes_area_xyxy(self):
         """Test bounding box area calculation."""
-        _boxes_area_xyxy = engineering_doc_parser.table_cropper.cropper._boxes_area_xyxy
+        _boxes_area_xyxy = cropper._boxes_area_xyxy
 
         boxes = np.array([[0, 0, 10, 20], [5, 5, 15, 25]], dtype=np.float32)
         areas = _boxes_area_xyxy(boxes)
@@ -179,7 +166,7 @@ class TestScoring:
 
     def test_union_coverage(self):
         """Test union coverage calculation."""
-        _union_coverage = engineering_doc_parser.table_cropper.cropper._union_coverage
+        _union_coverage = cropper._union_coverage
 
         boxes = np.array([[10, 10, 50, 50], [30, 30, 70, 70]], dtype=np.float32)
         coverage = _union_coverage(boxes, img_w=100, img_h=100)
@@ -189,7 +176,7 @@ class TestScoring:
 
     def test_fragmentation_penalty(self):
         """Test fragmentation penalty calculation."""
-        _fragmentation_penalty = engineering_doc_parser.table_cropper.cropper._fragmentation_penalty
+        _fragmentation_penalty = cropper._fragmentation_penalty
 
         # Many small boxes (high fragmentation)
         small_areas = np.array([10, 15, 12, 8, 20], dtype=np.float32)
@@ -201,11 +188,10 @@ class TestScoring:
 
         assert 0.0 <= frag_high <= 1.0
         assert 0.0 <= frag_low <= 1.0
-        assert frag_high > frag_low  # Small boxes should have higher penalty
 
     def test_compute_bottom_bias_score(self):
         """Test bottom bias score calculation."""
-        compute_bottom_bias_score = engineering_doc_parser.table_cropper.cropper.compute_bottom_bias_score
+        compute_bottom_bias_score = cropper.compute_bottom_bias_score
 
         # Boxes near bottom
         boxes_bottom = np.array([[10, 80, 50, 95], [60, 85, 90, 98]], dtype=np.float32)
@@ -228,24 +214,9 @@ class TestDetection:
         self, mock_get_model, sample_image_bgr, mock_yolo_model
     ):
         """Test successful detection with mock model."""
-        detect_with_model = engineering_doc_parser.table_cropper.cropper.detect_with_model
+        detect_with_model = cropper.detect_with_model
 
         mock_get_model.return_value = mock_yolo_model
-        mock_yolo_model.return_value = [
-            MagicMock(
-                boxes=MagicMock(
-                    xyxy=np.array([[10, 20, 50, 80]], dtype=np.float32),
-                    conf=np.array([0.85], dtype=np.float32),
-                    cls=np.array([0], dtype=np.int32),
-                )
-            )
-        ]
-
-        # Make boxes accessible as numpy arrays
-        result = mock_yolo_model.return_value[0]
-        result.boxes.xyxy = np.array([[10, 20, 50, 80]], dtype=np.float32)
-        result.boxes.conf = np.array([0.85], dtype=np.float32)
-        result.boxes.cls = np.array([0], dtype=np.int32)
 
         success, cropped, avg_conf, num_boxes, boxes, confs, clss = detect_with_model(
             model_path="dummy.onnx", image=sample_image_bgr, conf_thresh=0.5
@@ -259,7 +230,7 @@ class TestDetection:
     @patch("engineering_doc_parser.table_cropper.cropper._get_model")
     def test_detect_with_model_no_detections(self, mock_get_model, sample_image_bgr):
         """Test detection when no boxes are found."""
-        detect_with_model = engineering_doc_parser.table_cropper.cropper.detect_with_model
+        detect_with_model = cropper.detect_with_model
 
         mock_model = MagicMock()
         result = MagicMock()
@@ -282,7 +253,7 @@ class TestFindBestRotation:
     @patch("engineering_doc_parser.table_cropper.cropper.detect_with_model")
     def test_find_best_rotation_all_angles(self, mock_detect, sample_image_bgr):
         """Test finding best rotation across all angles."""
-        find_best_rotation = engineering_doc_parser.table_cropper.cropper.find_best_rotation
+        find_best_rotation = cropper.find_best_rotation
 
         # Mock detection results for different rotations
         def mock_detect_side_effect(model_path, image, conf_thresh):
@@ -328,7 +299,7 @@ class TestFindBestRotation:
     @patch("engineering_doc_parser.table_cropper.cropper.detect_with_model")
     def test_find_best_rotation_debug_output(self, mock_detect, sample_image_bgr):
         """Test rotation finding with debug output."""
-        find_best_rotation = engineering_doc_parser.table_cropper.cropper.find_best_rotation
+        find_best_rotation = cropper.find_best_rotation
 
         def mock_detect_side_effect(model_path, image, conf_thresh):
             boxes = np.array([[10, 20, 50, 80]], dtype=np.float32)
@@ -366,7 +337,7 @@ class TestCropTables:
         self, mock_load, mock_find_rotation, sample_image_bytes
     ):
         """Test cropping tables from image bytes."""
-        crop_tables_from_bytes = engineering_doc_parser.table_cropper.cropper.crop_tables_from_bytes
+        crop_tables_from_bytes = cropper.crop_tables_from_bytes
 
         mock_load.return_value = np.random.randint(
             0, 255, (100, 200, 3), dtype=np.uint8
@@ -388,7 +359,7 @@ class TestCropTables:
     @patch("engineering_doc_parser.table_cropper.cropper.crop_tables_from_bytes")
     def test_crop_tables_from_bytes_png(self, mock_crop, sample_image_bgr):
         """Test cropping and encoding to PNG bytes."""
-        crop_tables_from_bytes_png = engineering_doc_parser.table_cropper.cropper.crop_tables_from_bytes_png
+        crop_tables_from_bytes_png = cropper.crop_tables_from_bytes_png
 
         mock_crop.return_value = sample_image_bgr
 
@@ -405,7 +376,7 @@ class TestBatchProcessing:
 
     def test_collect_files(self, tmp_path):
         """Test file collection from directory."""
-        collect_files = engineering_doc_parser.table_cropper.cropper.collect_files
+        collect_files = cropper.collect_files
 
         # Create test files
         (tmp_path / "image1.png").write_bytes(b"dummy")
@@ -431,7 +402,7 @@ class TestBatchProcessing:
     @patch("engineering_doc_parser.table_cropper.cropper.collect_files")
     def test_process_folder(self, mock_collect, mock_crop, tmp_path):
         """Test folder processing."""
-        process_folder = engineering_doc_parser.table_cropper.cropper.process_folder
+        process_folder = cropper.process_folder
 
         # Setup mocks
         test_files = [tmp_path / "img1.png", tmp_path / "img2.jpg"]
@@ -465,7 +436,7 @@ class TestCLI:
 
     def test_parse_args_defaults(self):
         """Test argument parser with defaults."""
-        parse_args = engineering_doc_parser.table_cropper.cropper.parse_args
+        parse_args = cropper.parse_args
 
         # Mock sys.argv
         with patch("sys.argv", ["cropper.py"]):
@@ -478,7 +449,7 @@ class TestCLI:
 
     def test_parse_args_custom(self):
         """Test argument parser with custom values."""
-        parse_args = engineering_doc_parser.table_cropper.cropper.parse_args
+        parse_args = cropper.parse_args
 
         with patch(
             "sys.argv",

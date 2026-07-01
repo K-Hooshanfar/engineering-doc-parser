@@ -87,7 +87,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="YOLO model path(s) (.pt or .onnx).",
     )
     p.add_argument("--conf", type=float, default=None, help="Detection confidence.")
-    p.add_argument("--device", default=None, help="Inference device, e.g. cpu or cuda:0.")
+    p.add_argument(
+        "--device", default=None, help="Inference device, e.g. cpu or cuda:0."
+    )
     p.add_argument(
         "--no-bottom-bias",
         dest="prefer_bottom",
@@ -182,7 +184,9 @@ def main() -> None:
 
     if extract_only:
         if not input_path:
-            raise SystemExit("--extract-only requires --input (directory of crop images).")
+            raise SystemExit(
+                "--extract-only requires --input (directory of crop images)."
+            )
         _run_extraction(cfg, input_path)
         return
 
@@ -222,7 +226,9 @@ def main() -> None:
     )
 
     if failed:
-        raise SystemExit(f"Cropping finished with {failed} failure(s), {saved} crop(s) saved.")
+        raise SystemExit(
+            f"Cropping finished with {failed} failure(s), {saved} crop(s) saved."
+        )
 
     if extract_enabled:
         _run_extraction(cfg, output_dir)

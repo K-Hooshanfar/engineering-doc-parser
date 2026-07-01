@@ -340,10 +340,11 @@ class TestPredictRotation:
         mock_reader_class.return_value = mock_reader
 
         # Mock cv2 operations for contrast enhancement
-        with patch("engineering_doc_parser.rotation.core.cv2.cvtColor") as mock_cvt, patch(
+        with patch(
+            "engineering_doc_parser.rotation.core.cv2.cvtColor"
+        ) as mock_cvt, patch(
             "engineering_doc_parser.rotation.core.cv2.createCLAHE"
         ) as mock_clahe:
-
             mock_cvt.side_effect = lambda img, code: img  # Return as-is
             mock_clahe_instance = MagicMock()
             mock_clahe_instance.apply.return_value = sample_image_bgr[:, :, 0]
@@ -416,7 +417,9 @@ class TestAutorotateAndSave:
 
         mock_predict.return_value = (0, [], sample_image_bgr, {"scores": {}})
 
-        with patch("engineering_doc_parser.rotation.core.cv2.imwrite", return_value=True):
+        with patch(
+            "engineering_doc_parser.rotation.core.cv2.imwrite", return_value=True
+        ):
             input_path = tmp_path / "document.png"
             angle, ocr_result, saved_path, meta = autorotate_and_save_improved(
                 image_path=str(input_path),
@@ -563,7 +566,9 @@ class TestAutorotateFolder:
             Exception("Processing error"),
         ]
 
-        with patch("engineering_doc_parser.rotation.core.cv2.imwrite", return_value=True):
+        with patch(
+            "engineering_doc_parser.rotation.core.cv2.imwrite", return_value=True
+        ):
             results = autorotate_folder(
                 input_dir=str(input_dir),
                 output_dir=str(output_dir),

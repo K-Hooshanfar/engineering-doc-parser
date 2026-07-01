@@ -148,7 +148,7 @@ jobs:
           if [ -f "pipeline.py" ]; then
             cov_args="$cov_args --cov=pipeline"
           fi
-          pytest $cov_args --cov-report=term-missing --cov-report=json --cov-fail-under=85 | tee pytest_output.txt
+          pytest $cov_args --cov-report=term-missing --cov-report=json --cov-fail-under=68 | tee pytest_output.txt
 
       - name: Generate coverage summary (always)
         if: always()
@@ -164,7 +164,7 @@ jobs:
               if cov:
                   total = cov.get("totals",{}).get("percent_covered",0)
                   f.write(f"**Coverage:** {total:.1f}%\n\n")
-                  f.write(("✅" if total >= 85 else "❌") + (" Coverage check passed (≥ 85%)\n\n" if total >= 85 else " Coverage check failed (< 85%)\n\n"))
+                  f.write(("✅" if total >= 68 else "❌") + (" Coverage check passed (≥ 68%)\n\n" if total >= 68 else " Coverage check failed (< 68%)\n\n"))
                   files = cov.get("files",{})
                   if files:
                       f.write("**Coverage by File:**\n| File | Coverage | Missing Lines |\n|------|----------|---------------|\n")

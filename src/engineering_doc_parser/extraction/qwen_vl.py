@@ -10,7 +10,10 @@ from tqdm import tqdm
 
 DEFAULT_MODEL_ID = "Qwen/Qwen2.5-VL-7B-Instruct"
 DEFAULT_PROMPT_PATH = (
-    Path(__file__).resolve().parents[3] / "configs" / "prompts" / "document_extraction.txt"
+    Path(__file__).resolve().parents[3]
+    / "configs"
+    / "prompts"
+    / "document_extraction.txt"
 )
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
 
@@ -171,7 +174,9 @@ def extract_from_directory(
 
     images = collect_images(directory, cfg.glob_pattern)
     if not images:
-        raise ValueError(f"No images found in {directory} (pattern: {cfg.glob_pattern})")
+        raise ValueError(
+            f"No images found in {directory} (pattern: {cfg.glob_pattern})"
+        )
 
     extractor = QwenVLExtractor(cfg)
     if cfg.verbose:

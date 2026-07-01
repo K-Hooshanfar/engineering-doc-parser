@@ -20,7 +20,6 @@ sys.path.insert(0, str(ROOT / "src"))
 import yaml  # noqa: E402
 
 from engineering_doc_parser.extraction.qwen_vl import (  # noqa: E402
-    ExtractionConfig,
     QwenVLExtractor,
     extract_from_directory,
     extraction_config_from_dict,
@@ -129,7 +128,9 @@ def main() -> None:
 
     saved, failed, _ = extract_from_directory(path, config=extraction_cfg)
     if failed:
-        raise SystemExit(f"Finished with {failed} failure(s), {saved} markdown file(s) saved.")
+        raise SystemExit(
+            f"Finished with {failed} failure(s), {saved} markdown file(s) saved."
+        )
 
 
 if __name__ == "__main__":
